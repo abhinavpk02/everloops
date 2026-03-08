@@ -4,3 +4,4 @@ uploads/
 *.log
 everloops.db
 .DS_Store
+.env

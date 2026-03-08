@@ -11,19 +11,23 @@ const JWT_SECRET = process.env.JWT_SECRET || 'ever-loops-super-secret-key-2026';
 const app = express();
 const PORT = process.env.PORT || 3002;
 
+const isServerless = process.env.NETLIFY || process.env.LAMBDA_TASK_ROOT || process.env.NODE_ENV === 'production';
+const UPLOADS_DIR = isServerless ? '/tmp/uploads' : path.join(__dirname, 'uploads');
+const INVOICES_DIR = isServerless ? '/tmp/generated_invoices' : path.join(__dirname, 'generated_invoices');
+
 // Ensure uploads dir exists
-if (!fs.existsSync('uploads')) {
-    fs.mkdirSync('uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
 // Ensure generated_invoices dir exists
-if (!fs.existsSync('generated_invoices')) {
-    fs.mkdirSync('generated_invoices');
+if (!fs.existsSync(INVOICES_DIR)) {
+    fs.mkdirSync(INVOICES_DIR, { recursive: true });
 }
 
 // Multer Config
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'uploads/'),
+    destination: (req, file, cb) => cb(null, UPLOADS_DIR + '/'),
     filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/\s+/g, '-'))
 });
 const upload = multer({ storage });
@@ -31,7 +35,7 @@ const upload = multer({ storage });
 // Middleware to parse JSON bodies and serve static files
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 // API Routes
 
@@ -338,7 +342,7 @@ app.get('/api/invoices/:id/pdf', (req, res) => {
             WHERE invoices.id = ?`, [invoiceId], (err, invoice) => {
         if (err || !invoice) return res.status(404).json({ error: 'Invoice not found' });
 
-        const savePath = path.join(__dirname, 'generated_invoices', `${invoice.invoice_number}.pdf`);
+        const savePath = path.join(INVOICES_DIR, `${invoice.invoice_number}.pdf`);
         if (fs.existsSync(savePath)) {
             return res.sendFile(savePath);
         }
@@ -360,7 +364,7 @@ app.get('/api/invoices/:id/pdf', (req, res) => {
                 res.setHeader('Content-disposition', `attachment; filename="${invoice.invoice_number}.pdf"`);
                 res.setHeader('Content-type', 'application/pdf');
 
-                const savePath = path.join(__dirname, 'generated_invoices', `${invoice.invoice_number}.pdf`);
+                const savePath = path.join(INVOICES_DIR, `${invoice.invoice_number}.pdf`);
                 const fileStream = fs.createWriteStream(savePath);
                 doc.pipe(fileStream);
                 doc.pipe(res);
@@ -380,33 +384,33 @@ app.get('/api/invoices/:id/pdf', (req, res) => {
                 }
 
                 doc.fillColor('#1e293b').fontSize(32).font('Helvetica-Bold').text('INVOICE', 0, headerY + 10, { align: 'right', x: rightMargin });
-                
+
                 headerY += 80;
                 doc.moveTo(leftMargin, headerY).lineTo(rightMargin, headerY).lineWidth(3).strokeColor('#bdf53d').stroke();
-                
+
                 headerY += 25;
                 // Invoice Details Grid
                 doc.fillColor('#64748b').fontSize(8).font('Helvetica-Bold').text('INVOICE TO:', leftMargin, headerY);
                 doc.text('INVOICE DETAILS:', 350, headerY);
-                
+
                 headerY += 14;
                 doc.fillColor('#1e293b').fontSize(14).font('Helvetica-Bold').text(invoice.customer_name || 'Quick Customer', leftMargin, headerY);
-                
+
                 // Right side details
                 doc.fontSize(9).font('Helvetica').text('Invoice #:', 350, headerY);
                 doc.font('Helvetica-Bold').text(invoice.invoice_number, 420, headerY);
-                
+
                 headerY += 16;
                 doc.font('Helvetica').text('Date:', 350, headerY);
                 doc.font('Helvetica-Bold').text(new Date(invoice.created_at).toLocaleDateString(), 420, headerY);
-                
+
                 headerY += 16;
                 doc.font('Helvetica').text('Status:', 350, headerY);
                 const statusColor = invoice.status === 'Paid' ? '#10b981' : '#f59e0b';
                 doc.fillColor(statusColor).font('Helvetica-Bold').text(invoice.status.toUpperCase(), 420, headerY);
 
                 // FROM section
-                headerY = 140 + 25; 
+                headerY = 140 + 25;
                 doc.fillColor('#64748b').fontSize(8).font('Helvetica-Bold').text('FROM:', leftMargin, headerY);
                 doc.fillColor('#1e293b').fontSize(10).font('Helvetica-Bold').text(companyName, leftMargin, headerY + 12);
                 doc.fontSize(8).font('Helvetica').fillColor('#475569').text(companyAddress + `\nPhone: ${companyPhone}`, leftMargin, headerY + 24, { width: 250 });
@@ -432,14 +436,14 @@ app.get('/api/invoices/:id/pdf', (req, res) => {
                     if (index % 2 === 1) {
                         doc.rect(leftMargin, y - 5, 515, 20).fill('#f8fafc');
                     }
-                    
+
                     doc.font('Helvetica').fontSize(9).fillColor('#1e293b');
                     doc.text(item.product_name, col1 + 10, y, { width: 220 });
                     doc.text(item.quantity.toString(), col2, y, { width: 40, align: 'center' });
                     doc.text(item.price.toLocaleString(undefined, { minimumFractionDigits: 2 }), col3, y, { width: 80, align: 'right' });
                     doc.text(`${currentTaxRate}%`, col4, y, { width: 40, align: 'right' });
                     doc.text(lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2 }), col5, y, { width: 75, align: 'right' });
-                    
+
                     y += 20;
                     if (y > 650) { doc.addPage(); y = 50; }
                 });
@@ -448,7 +452,7 @@ app.get('/api/invoices/:id/pdf', (req, res) => {
                 y += 20;
                 const totalBoxWidth = 200;
                 const totalBoxX = rightMargin - totalBoxWidth;
-                
+
                 const discount = parseFloat(invoice.discount) || 0;
                 const tax = (subtotal - discount) * (currentTaxRate / 100);
                 const grandTotal = parseFloat(invoice.total_amount);
@@ -487,7 +491,7 @@ app.get('/api/invoices/:id/pdf', (req, res) => {
 
                 // --- FOOTER SECTION ---
                 doc.fontSize(8).fillColor('#94a3b8').font('Helvetica-Oblique').text('Thank you for choosing Ever Loops Carpets. This is a computer-generated invoice.', leftMargin, 790, { align: 'center', width: 515 });
-                
+
                 doc.end();
             });
         });
@@ -602,7 +606,7 @@ app.post('/api/invoices/pdf', (req, res) => {
         res.setHeader('Content-type', 'application/pdf');
 
         // Save to disk AND stream to browser simultaneously
-        const savePath = path.join(__dirname, 'generated_invoices', `${invoiceNumber}.pdf`);
+        const savePath = path.join(INVOICES_DIR, `${invoiceNumber}.pdf`);
         const fileStream = fs.createWriteStream(savePath);
         doc.pipe(fileStream);
         doc.pipe(res);
@@ -622,33 +626,33 @@ app.post('/api/invoices/pdf', (req, res) => {
         }
 
         doc.fillColor('#1e293b').fontSize(32).font('Helvetica-Bold').text('INVOICE', 0, headerY + 10, { align: 'right', x: rightMargin });
-        
+
         headerY += 80;
         doc.moveTo(leftMargin, headerY).lineTo(rightMargin, headerY).lineWidth(3).strokeColor('#bdf53d').stroke();
-        
+
         headerY += 25;
         // Invoice Details Grid
         doc.fillColor('#64748b').fontSize(8).font('Helvetica-Bold').text('INVOICE TO:', leftMargin, headerY);
         doc.text('INVOICE DETAILS:', 350, headerY);
-        
+
         headerY += 14;
         doc.fillColor('#1e293b').fontSize(14).font('Helvetica-Bold').text(customerName || 'Quick Customer', leftMargin, headerY);
-        
+
         // Right side details
         doc.fontSize(9).font('Helvetica').text('Invoice #:', 350, headerY);
         doc.font('Helvetica-Bold').text(invoiceNumber, 420, headerY);
-        
+
         headerY += 16;
         doc.font('Helvetica').text('Date:', 350, headerY);
         doc.font('Helvetica-Bold').text(new Date().toLocaleDateString(), 420, headerY);
-        
+
         headerY += 16;
         doc.font('Helvetica').text('Status:', 350, headerY);
         const statusColor = status === 'Paid' ? '#10b981' : '#f59e0b';
         doc.fillColor(statusColor).font('Helvetica-Bold').text((status || 'PENDING').toUpperCase(), 420, headerY);
 
         // FROM section
-        headerY = 140 + 25; 
+        headerY = 140 + 25;
         doc.fillColor('#64748b').fontSize(8).font('Helvetica-Bold').text('FROM:', leftMargin, headerY);
         doc.fillColor('#1e293b').fontSize(10).font('Helvetica-Bold').text(companyName, leftMargin, headerY + 12);
         doc.fontSize(8).font('Helvetica').fillColor('#475569').text(companyAddress + `\nPhone: ${companyPhone}`, leftMargin, headerY + 24, { width: 250 });
@@ -674,14 +678,14 @@ app.post('/api/invoices/pdf', (req, res) => {
             if (index % 2 === 1) {
                 doc.rect(leftMargin, y - 5, 515, 20).fill('#f8fafc');
             }
-            
+
             doc.font('Helvetica').fontSize(9).fillColor('#1e293b');
             doc.text(item.name || item.product_name, col1 + 10, y, { width: 220 });
             doc.text(qty.toString(), col2, y, { width: 40, align: 'center' });
             doc.text(price.toLocaleString(undefined, { minimumFractionDigits: 2 }), col3, y, { width: 80, align: 'right' });
             doc.text(`${currentTaxRate}%`, col4, y, { width: 40, align: 'right' });
             doc.text(lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2 }), col5, y, { width: 75, align: 'right' });
-            
+
             y += 20;
             if (y > 650) { doc.addPage(); y = 50; }
         });
@@ -690,7 +694,7 @@ app.post('/api/invoices/pdf', (req, res) => {
         y += 20;
         const totalBoxWidth = 200;
         const totalBoxX = rightMargin - totalBoxWidth;
-        
+
         const numSubtotal = parseFloat(subtotal) || 0;
         const numDiscount = parseFloat(discount) || 0;
         const numTax = parseFloat(tax) || 0;
@@ -730,7 +734,7 @@ app.post('/api/invoices/pdf', (req, res) => {
 
         // --- FOOTER SECTION ---
         doc.fontSize(8).fillColor('#94a3b8').font('Helvetica-Oblique').text('Thank you for choosing Ever Loops Carpets. This is a computer-generated invoice.', leftMargin, 790, { align: 'center', width: 515 });
-        
+
         doc.end();
     });
 });
@@ -759,7 +763,13 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Start the server
-app.listen(PORT, () => {
-    console.log(`Ever Loops Server running at http://localhost:${PORT}`);
-});
+// Start the server (only if not running in production serverless environments like Netlify)
+if (process.env.NODE_ENV !== 'production' && !process.env.NETLIFY && !process.env.LAMBDA_TASK_ROOT) {
+    app.listen(PORT, () => {
+        console.log(`Ever Loops Server running at http://localhost:${PORT}`);
+    });
+}
+
+const serverless = require('serverless-http');
+module.exports = app;
+module.exports.handler = serverless(app);
