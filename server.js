@@ -7,6 +7,8 @@ const fs = require('fs');
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'ever-loops-super-secret-key-2026';
+// Project root - always points to the repo root regardless of serverless function __dirname
+const PROJECT_ROOT = path.resolve(__dirname);
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -375,15 +377,19 @@ app.get('/api/invoices/:id/pdf', (req, res) => {
                 // --- HEADER SECTION ---
                 let logoPath = settings && settings.company_logo ? settings.company_logo : null;
                 let headerY = 40;
+                let logoDrawn = false;
                 if (logoPath) {
                     if (logoPath.startsWith('/')) logoPath = logoPath.substring(1);
-                    const fullLogoPath = path.join(__dirname, logoPath);
-                    if (fs.existsSync(fullLogoPath)) {
-                        try { doc.image(fullLogoPath, leftMargin, headerY, { height: 60 }); } catch (e) { }
+                    // Try local uploads first, then committed uploads in repo root
+                    const localPath = path.join(UPLOADS_DIR, path.basename(logoPath));
+                    const repoPath = path.join(PROJECT_ROOT, logoPath);
+                    const fullLogoPath = fs.existsSync(localPath) ? localPath : (fs.existsSync(repoPath) ? repoPath : null);
+                    if (fullLogoPath) {
+                        try { doc.image(fullLogoPath, leftMargin, headerY, { height: 70, fit: [200, 70], align: 'left' }); logoDrawn = true; } catch (e) { }
                     }
                 }
-
-                doc.fillColor('#1e293b').fontSize(32).font('Helvetica-Bold').text('INVOICE', 0, headerY + 10, { align: 'right', x: rightMargin });
+                // INVOICE title aligned to right
+                doc.fillColor('#1e293b').fontSize(32).font('Helvetica-Bold').text('INVOICE', leftMargin, headerY + 15, { align: 'right', width: rightMargin - leftMargin });
 
                 headerY += 80;
                 doc.moveTo(leftMargin, headerY).lineTo(rightMargin, headerY).lineWidth(3).strokeColor('#bdf53d').stroke();
@@ -617,15 +623,19 @@ app.post('/api/invoices/pdf', (req, res) => {
         // --- HEADER SECTION ---
         let logoPath = settings && settings.company_logo ? settings.company_logo : null;
         let headerY = 40;
+        let logoDrawn = false;
         if (logoPath) {
             if (logoPath.startsWith('/')) logoPath = logoPath.substring(1);
-            const fullLogoPath = path.join(__dirname, logoPath);
-            if (fs.existsSync(fullLogoPath)) {
-                try { doc.image(fullLogoPath, leftMargin, headerY, { height: 60 }); } catch (e) { }
+            // Try local uploads first, then committed uploads in repo root
+            const localPath = path.join(UPLOADS_DIR, path.basename(logoPath));
+            const repoPath = path.join(PROJECT_ROOT, logoPath);
+            const fullLogoPath = fs.existsSync(localPath) ? localPath : (fs.existsSync(repoPath) ? repoPath : null);
+            if (fullLogoPath) {
+                try { doc.image(fullLogoPath, leftMargin, headerY, { height: 70, fit: [200, 70], align: 'left' }); logoDrawn = true; } catch (e) { }
             }
         }
-
-        doc.fillColor('#1e293b').fontSize(32).font('Helvetica-Bold').text('INVOICE', 0, headerY + 10, { align: 'right', x: rightMargin });
+        // INVOICE title aligned to right
+        doc.fillColor('#1e293b').fontSize(32).font('Helvetica-Bold').text('INVOICE', leftMargin, headerY + 15, { align: 'right', width: rightMargin - leftMargin });
 
         headerY += 80;
         doc.moveTo(leftMargin, headerY).lineTo(rightMargin, headerY).lineWidth(3).strokeColor('#bdf53d').stroke();
