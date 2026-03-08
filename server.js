@@ -772,4 +772,6 @@ if (process.env.NODE_ENV !== 'production' && !process.env.NETLIFY && !process.en
 
 const serverless = require('serverless-http');
 module.exports = app;
-module.exports.handler = serverless(app);
+module.exports.handler = serverless(app, {
+    basePath: '/.netlify/functions/server'
+});
