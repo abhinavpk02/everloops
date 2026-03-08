@@ -1,0 +1,6 @@
+node_modules/
+generated_invoices/
+uploads/
+*.log
+everloops.db
+.DS_Store
