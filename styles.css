@@ -189,7 +189,7 @@ a {
     letter-spacing: 1px;
     color: var(--text-muted);
     font-weight: 600;
-    padding-left: 1rem;
+    padding-left: 0.5rem;
     margin-bottom: 0.25rem;
     opacity: 0.7;
 }
@@ -197,9 +197,10 @@ a {
 .nav-btn {
     display: flex;
     align-items: center;
+    justify-content: flex-start;
     gap: 1rem;
     width: 100%;
-    padding: 1rem;
+    padding: 0.85rem 1rem;
     border-radius: var(--radius-md);
     background: transparent;
     border: none;
