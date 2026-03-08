@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,40 +15,48 @@
             justify-content: center;
             height: 100vh;
         }
+
         .login-card {
             width: 100%;
             max-width: 400px;
             padding: 2.5rem;
             text-align: center;
         }
+
         .login-logo-container {
             display: flex;
             justify-content: center;
             align-items: center;
         }
+
         .login-card h2 {
             margin-bottom: 2rem;
             font-weight: 600;
         }
+
         .login-form .form-group {
             text-align: left;
         }
+
         .login-btn {
             width: 100%;
             justify-content: center;
             margin-top: 1rem;
         }
+
         #login-error {
             color: var(--danger);
             font-size: 0.85rem;
             margin-top: 1rem;
             min-height: 20px;
         }
+
         .login-footer {
             margin-top: 1.5rem;
             font-size: 0.8rem;
             color: var(--text-muted);
         }
+
         .watermark {
             position: absolute;
             bottom: 1.5rem;
@@ -61,11 +70,13 @@
             pointer-events: none;
             user-select: none;
         }
+
         .login-logo {
             transition: all 0.3s ease;
         }
     </style>
 </head>
+
 <body data-theme="dark">
     <div class="login-wrapper">
         <div style="position: absolute; top: 2rem; right: 2rem;">
@@ -80,7 +91,8 @@
         </div>
         <div class="glass-panel login-card">
             <div class="login-logo-container" style="margin-bottom: 2rem; display: flex; justify-content: center;">
-                <img src="/uploads/company-logo.png" alt="Ever Loops Logo" class="login-logo" style="width: 100%; max-width: 320px; height: auto; object-fit: contain;">
+                <img src="/uploads/everloopslogo.png" alt="Ever Loops Logo" class="login-logo"
+                    style="width: 100%; max-width: 320px; height: auto; object-fit: contain;">
             </div>
             <form id="login-form" class="login-form">
                 <div class="form-group">
@@ -95,7 +107,8 @@
                 <div id="login-error"></div>
             </form>
             <div class="login-footer">
-                &copy; <script>document.write(new Date().getFullYear())</script> Ever Loops Carpets. All rights reserved.
+                &copy;
+                <script>document.write(new Date().getFullYear())</script> Ever Loops Carpets. All rights reserved.
             </div>
         </div>
         <div class="watermark">bins.lab</div>
@@ -140,25 +153,26 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password })
             })
-            .then(res => res.json().then(data => ({ status: res.status, body: data })))
-            .then(res => {
-                if (res.status === 200) {
-                    localStorage.setItem('token', res.body.token);
-                    localStorage.setItem('role', res.body.role);
-                    localStorage.setItem('username', res.body.username);
-                    window.location.href = '/';
-                } else {
-                    origErr.textContent = res.body.error || 'Login failed';
-                }
-            })
-            .catch(err => {
-                origErr.textContent = 'Network error during login.';
-            })
-            .finally(() => {
-                btn.textContent = 'Login';
-                btn.disabled = false;
-            });
+                .then(res => res.json().then(data => ({ status: res.status, body: data })))
+                .then(res => {
+                    if (res.status === 200) {
+                        localStorage.setItem('token', res.body.token);
+                        localStorage.setItem('role', res.body.role);
+                        localStorage.setItem('username', res.body.username);
+                        window.location.href = '/';
+                    } else {
+                        origErr.textContent = res.body.error || 'Login failed';
+                    }
+                })
+                .catch(err => {
+                    origErr.textContent = 'Network error during login.';
+                })
+                .finally(() => {
+                    btn.textContent = 'Login';
+                    btn.disabled = false;
+                });
         });
     </script>
 </body>
+
 </html>
