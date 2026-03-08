@@ -336,343 +336,69 @@ app.get('/api/invoices/:id', (req, res) => {
     });
 });
 
-// Generate PDF for an existing invoice
-app.get('/api/invoices/:id/pdf', (req, res) => {
-    const invoiceId = req.params.id;
-    db.get(`SELECT invoices.*, customers.name as customer_name 
-            FROM invoices LEFT JOIN customers ON invoices.customer_id = customers.id
-            WHERE invoices.id = ?`, [invoiceId], (err, invoice) => {
-        if (err || !invoice) return res.status(404).json({ error: 'Invoice not found' });
 
-        const savePath = path.join(INVOICES_DIR, `${invoice.invoice_number}.pdf`);
-        if (fs.existsSync(savePath)) {
-            return res.sendFile(savePath);
-        }
-
-        db.all(`SELECT invoice_items.*, inventory.name as product_name 
-                FROM invoice_items 
-                JOIN inventory ON invoice_items.product_id = inventory.id
-                WHERE invoice_items.invoice_id = ?`, [invoiceId], (err, items) => {
-            if (err) return res.status(500).json({ error: err.message });
-
-            db.get('SELECT * FROM settings WHERE id = 1', (err, settings) => {
-                const companyName = settings ? settings.company_name : 'EVER LOOPS';
-                const companyAddress = settings ? settings.address.replace(/\\n/g, ', ') : 'Doha, Qatar';
-                const companyPhone = settings ? settings.phone : '';
-                const currency = settings ? settings.currency : 'QAR';
-                const currentTaxRate = settings ? settings.tax_rate : 5;
-
-                const doc = new PDFDocument({ margin: 40, size: 'A4' });
-                res.setHeader('Content-disposition', `attachment; filename="${invoice.invoice_number}.pdf"`);
-                res.setHeader('Content-type', 'application/pdf');
-
-                const savePath = path.join(INVOICES_DIR, `${invoice.invoice_number}.pdf`);
-                const fileStream = fs.createWriteStream(savePath);
-                doc.pipe(fileStream);
-                doc.pipe(res);
-
-                const leftMargin = 40, rightMargin = 555;
-                const col1 = 40, col2 = 280, col3 = 340, col4 = 430, col5 = 480;
-
-                // --- HEADER SECTION ---
-                let logoPathSetting = settings && settings.company_logo ? settings.company_logo : null;
-                let headerY = 40;
-                if (logoPathSetting) {
-                    try {
-                        const lp = logoPathSetting.startsWith('/') ? logoPathSetting.substring(1) : logoPathSetting;
-                        const localPath = path.join(UPLOADS_DIR, path.basename(lp));
-                        const repoPath = path.join(PROJECT_ROOT, lp);
-                        const fullLogoPath = fs.existsSync(localPath) ? localPath : (fs.existsSync(repoPath) ? repoPath : null);
-                        if (fullLogoPath) {
-                            const imgBuffer = fs.readFileSync(fullLogoPath);
-                            doc.image(imgBuffer, leftMargin, headerY, { width: 160 });
-                        }
-                    } catch (e) { console.error('Logo error (GET PDF):', e.message); }
-                }
-                // INVOICE title aligned to right
-                doc.fillColor('#1e293b').fontSize(32).font('Helvetica-Bold')
-                    .text('INVOICE', leftMargin, headerY + 15, { align: 'right', width: rightMargin - leftMargin });
-
-                headerY += 80;
-                doc.moveTo(leftMargin, headerY).lineTo(rightMargin, headerY).lineWidth(3).strokeColor('#bdf53d').stroke();
-
-                headerY += 25;
-                // Invoice Details Grid
-                doc.fillColor('#64748b').fontSize(8).font('Helvetica-Bold').text('INVOICE TO:', leftMargin, headerY);
-                doc.text('INVOICE DETAILS:', 350, headerY);
-
-                headerY += 14;
-                doc.fillColor('#1e293b').fontSize(14).font('Helvetica-Bold').text(invoice.customer_name || 'Quick Customer', leftMargin, headerY);
-
-                // Right side details
-                doc.fontSize(9).font('Helvetica').text('Invoice #:', 350, headerY);
-                doc.font('Helvetica-Bold').text(invoice.invoice_number, 420, headerY);
-
-                headerY += 16;
-                doc.font('Helvetica').text('Date:', 350, headerY);
-                doc.font('Helvetica-Bold').text(new Date(invoice.created_at).toLocaleDateString(), 420, headerY);
-
-                headerY += 16;
-                doc.font('Helvetica').text('Status:', 350, headerY);
-                const statusColor = invoice.status === 'Paid' ? '#10b981' : '#f59e0b';
-                doc.fillColor(statusColor).font('Helvetica-Bold').text(invoice.status.toUpperCase(), 420, headerY);
-
-                // FROM section
-                headerY = 140 + 25;
-                doc.fillColor('#64748b').fontSize(8).font('Helvetica-Bold').text('FROM:', leftMargin, headerY);
-                doc.fillColor('#1e293b').fontSize(10).font('Helvetica-Bold').text(companyName, leftMargin, headerY + 12);
-                doc.fontSize(8).font('Helvetica').fillColor('#475569').text(companyAddress + `\nPhone: ${companyPhone}`, leftMargin, headerY + 24, { width: 250 });
-
-                // --- TABLE SECTION ---
-                let tableTop = 240;
-                doc.rect(leftMargin, tableTop, 515, 25).fill('#1e293b');
-                doc.fontSize(9).font('Helvetica-Bold').fillColor('#fff');
-                doc.text('DESCRIPTION', col1 + 10, tableTop + 8);
-                doc.text('QTY', col2, tableTop + 8, { width: 40, align: 'center' });
-                doc.text('UNIT PRICE', col3, tableTop + 8, { width: 80, align: 'right' });
-                doc.text('VAT', col4, tableTop + 8, { width: 40, align: 'right' });
-                doc.text('TOTAL', col5, tableTop + 8, { width: 75, align: 'right' });
-
-                let y = tableTop + 30;
-                let subtotal = 0;
-                (items || []).forEach((item, index) => {
-                    const lineSubtotal = item.price * item.quantity;
-                    subtotal += lineSubtotal;
-                    const lineTax = lineSubtotal * (currentTaxRate / 100);
-                    const lineTotal = lineSubtotal + lineTax;
-
-                    if (index % 2 === 1) {
-                        doc.rect(leftMargin, y - 5, 515, 20).fill('#f8fafc');
-                    }
-
-                    doc.font('Helvetica').fontSize(9).fillColor('#1e293b');
-                    doc.text(item.product_name, col1 + 10, y, { width: 220 });
-                    doc.text(item.quantity.toString(), col2, y, { width: 40, align: 'center' });
-                    doc.text(item.price.toLocaleString(undefined, { minimumFractionDigits: 2 }), col3, y, { width: 80, align: 'right' });
-                    doc.text(`${currentTaxRate}%`, col4, y, { width: 40, align: 'right' });
-                    doc.text(lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2 }), col5, y, { width: 75, align: 'right' });
-
-                    y += 20;
-                    if (y > 650) { doc.addPage(); y = 50; }
-                });
-
-                // --- TOTALS SECTION ---
-                y += 20;
-                const totalBoxWidth = 200;
-                const totalBoxX = rightMargin - totalBoxWidth;
-
-                const discount = parseFloat(invoice.discount) || 0;
-                const tax = (subtotal - discount) * (currentTaxRate / 100);
-                const grandTotal = parseFloat(invoice.total_amount);
-
-                doc.fontSize(10).font('Helvetica').fillColor('#64748b').text('Subtotal:', totalBoxX, y, { width: 100, align: 'right' });
-                doc.font('Helvetica-Bold').fillColor('#1e293b').text(`${currency} ${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, totalBoxX + 105, y, { width: 95, align: 'right' });
-                y += 18;
-
-                if (discount > 0) {
-                    doc.font('Helvetica').fillColor('#64748b').text('Discount:', totalBoxX, y, { width: 100, align: 'right' });
-                    doc.font('Helvetica-Bold').fillColor('#ef4444').text(`- ${currency} ${discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, totalBoxX + 105, y, { width: 95, align: 'right' });
-                    y += 18;
-                }
-
-                doc.font('Helvetica').fillColor('#64748b').text(`VAT (${currentTaxRate}%):`, totalBoxX, y, { width: 100, align: 'right' });
-                doc.font('Helvetica-Bold').fillColor('#1e293b').text(`${currency} ${tax.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, totalBoxX + 105, y, { width: 95, align: 'right' });
-                y += 25;
-
-                // Grand Total Box
-                doc.rect(totalBoxX, y - 8, totalBoxWidth + 5, 35).fill('#1e293b');
-                doc.fillColor('#bdf53d').fontSize(12).font('Helvetica-Bold').text('TOTAL PAYABLE', totalBoxX + 10, y + 2);
-                doc.text(`${currency} ${grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, totalBoxX + 110, y + 2, { width: 85, align: 'right' });
-
-                // --- NEW INFORMATION SECTIONS ---
-                y += 60;
-                if (y > 700) { doc.addPage(); y = 50; }
-
-                const infoColW = 240;
-                // Payment Info
-                doc.fillColor('#64748b').fontSize(9).font('Helvetica-Bold').text('PAYMENT INFORMATION', leftMargin, y);
-                doc.fillColor('#1e293b').fontSize(8).font('Helvetica').text(`Method: ${invoice.payment_method || 'Bank Transfer'}\nBank Name: Qatar National Bank (QNB)\nAccount Name: EVER LOOPS CARPETS W.L.L.\nIBAN: QA45 QNBA 0000 0000 1234 5678 9012`, leftMargin, y + 15, { width: infoColW, lineGap: 3 });
-
-                // Terms & conditions
-                doc.fillColor('#64748b').fontSize(9).font('Helvetica-Bold').text('TERMS & CONDITIONS', 315, y);
-                doc.fillColor('#1e293b').fontSize(8).font('Helvetica').text(`1. Goods once sold will not be exchanged or returned.\n2. Warranty covers manufacturing defects only.\n3. Installation is not included unless specified.\n4. Possession is effective after full payment.`, 315, y + 15, { width: infoColW, lineGap: 3 });
-
-                // --- FOOTER SECTION ---
-                doc.fontSize(8).fillColor('#94a3b8').font('Helvetica-Oblique').text('Thank you for choosing Ever Loops Carpets. This is a computer-generated invoice.', leftMargin, 790, { align: 'center', width: 515 });
-
-                doc.end();
-            });
-        });
-    });
-});
-
-app.post('/api/invoices', (req, res) => {
-    const { customer_id, total_amount, items, discount, payment_method, status } = req.body;
-
-    // Generate invoice number using prefix from settings
-    db.get('SELECT invoice_prefix FROM settings WHERE id = 1', (err, row) => {
-        const prefix = row ? row.invoice_prefix : 'INV-2023-';
-        const invoice_number = prefix + Math.floor(Math.random() * 10000);
-
-        db.run("INSERT INTO invoices (customer_id, invoice_number, total_amount, discount, payment_method, status) VALUES (?, ?, ?, ?, ?, ?)",
-            [customer_id, invoice_number, total_amount, discount || 0, payment_method || 'Cash', status || 'Pending'], function (err) {
-                if (err) return res.status(500).json({ error: err.message });
-
-                const invoiceId = this.lastID;
-
-                // Also update customer's total spent
-                db.run("UPDATE customers SET total_spent = total_spent + ? WHERE id = ?", [total_amount, customer_id]);
-
-                // Insert items and deduct stock
-                if (items && Array.isArray(items)) {
-                    const itemInsert = db.prepare("INSERT INTO invoice_items (invoice_id, product_id, quantity, price) VALUES (?, ?, ?, ?)");
-                    items.forEach(item => {
-                        if (item.id && item.qty) {
-                            itemInsert.run(invoiceId, item.id, item.qty, item.price);
-                            db.run("UPDATE inventory SET stock = MAX(0, stock - ?) WHERE id = ?", [item.qty, item.id]);
-                        }
-                    });
-                    itemInsert.finalize();
-                }
-
-                res.json({ id: invoiceId, invoice_number, total_amount });
-            });
-    });
-});
-
-// ---- REPORTS & ANALYTICS ----
-app.get('/api/reports', requireAdmin, (req, res) => {
-    const period = req.query.period || 'monthly';
-    let dateFormat, timeModifier;
-
-    switch (period) {
-        case 'daily':
-            dateFormat = '%Y-%m-%d';
-            timeModifier = '-14 days';
-            break;
-        case 'weekly':
-            dateFormat = '%Y-%W';
-            timeModifier = '-84 days';
-            break;
-        case 'yearly':
-            dateFormat = '%Y';
-            timeModifier = '-5 years';
-            break;
-        case 'monthly':
-        default:
-            dateFormat = '%Y-%m';
-            timeModifier = '-12 months';
-            break;
-    }
-
-    const salesQuery = `
-        SELECT strftime('${dateFormat}', created_at) as label, SUM(total_amount) as revenue 
-        FROM invoices 
-        WHERE created_at >= date('now', '${timeModifier}')
-        GROUP BY label 
-        ORDER BY label ASC 
-    `;
-
-    const productQuery = `
-        SELECT inventory.name, SUM(invoice_items.quantity) as sold_count 
-        FROM invoice_items 
-        JOIN inventory ON invoice_items.product_id = inventory.id 
-        JOIN invoices ON invoice_items.invoice_id = invoices.id
-        WHERE invoices.created_at >= date('now', '${timeModifier}')
-        GROUP BY inventory.id 
-        ORDER BY sold_count DESC 
-        LIMIT 5
-    `;
-
-    db.all(salesQuery, [], (err, salesRows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        db.all(productQuery, [], (err, productRows) => {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json({
-                sales: salesRows || [],
-                products: productRows || []
-            });
-        });
-    });
-});
-
-app.post('/api/invoices/pdf', (req, res) => {
-    const { customerName, invoiceNumber, items, subtotal, tax, grandTotal, discount, paymentMethod, status } = req.body;
-
-    db.get('SELECT * FROM settings WHERE id = 1', (err, settings) => {
-        const companyName = settings ? settings.company_name : 'EVER LOOPS';
-        const companyAddress = settings ? settings.address.replace(/\\n/g, ', ') : 'Building 45, Street 250, D-Ring Road, Doha, Qatar';
-        const companyPhone = settings ? settings.phone : '+974 4411 2233';
-        const currency = settings ? settings.currency : 'QAR';
-        const currentTaxRate = settings ? settings.tax_rate : 5;
-
-        // Create a document
+// ---- PDF HELPER: buffer-based (required for Netlify serverless) ----
+function generateInvoicePDFBuffer(invoiceData, settings) {
+    return new Promise((resolve, reject) => {
+        const { PassThrough } = require('stream');
         const doc = new PDFDocument({ margin: 40, size: 'A4' });
+        const chunks = [];
+        const pt = new PassThrough();
+        pt.on('data', c => chunks.push(c));
+        pt.on('end', () => resolve(Buffer.concat(chunks)));
+        pt.on('error', reject);
+        doc.pipe(pt);
 
-        // Set response headers to trigger download
-        res.setHeader('Content-disposition', `attachment; filename="${invoiceNumber}.pdf"`);
-        res.setHeader('Content-type', 'application/pdf');
-
-        // Save to disk AND stream to browser simultaneously
-        const savePath = path.join(INVOICES_DIR, `${invoiceNumber}.pdf`);
-        const fileStream = fs.createWriteStream(savePath);
-        doc.pipe(fileStream);
-        doc.pipe(res);
-
+        const companyName = settings ? settings.company_name : 'EVER LOOPS';
+        const rawAddr = settings ? (settings.address || '') : '';
+        const companyAddress = rawAddr.replace(/\\n/g, '\\n').replace(/\n/g, ', ');
+        const companyPhone = settings ? settings.phone : '';
+        const currency = settings ? settings.currency : 'QAR';
+        const currentTaxRate = settings ? Number(settings.tax_rate) : 5;
         const leftMargin = 40, rightMargin = 555;
         const col1 = 40, col2 = 280, col3 = 340, col4 = 430, col5 = 480;
 
-        // --- HEADER SECTION ---
-        let logoPathSetting = settings && settings.company_logo ? settings.company_logo : null;
+        // LOGO
         let headerY = 40;
-        if (logoPathSetting) {
-            try {
-                const lp = logoPathSetting.startsWith('/') ? logoPathSetting.substring(1) : logoPathSetting;
+        try {
+            const rawLogo = settings && settings.company_logo ? settings.company_logo : null;
+            if (rawLogo) {
+                const lp = rawLogo.startsWith('/') ? rawLogo.substring(1) : rawLogo;
                 const localPath = path.join(UPLOADS_DIR, path.basename(lp));
                 const repoPath = path.join(PROJECT_ROOT, lp);
                 const fullLogoPath = fs.existsSync(localPath) ? localPath : (fs.existsSync(repoPath) ? repoPath : null);
-                if (fullLogoPath) {
-                    const imgBuffer = fs.readFileSync(fullLogoPath);
-                    doc.image(imgBuffer, leftMargin, headerY, { width: 160 });
-                }
-            } catch (e) { console.error('Logo error (POST PDF):', e.message); }
-        }
-        // INVOICE title aligned to right
+                if (fullLogoPath) doc.image(fs.readFileSync(fullLogoPath), leftMargin, headerY, { width: 170 });
+            }
+        } catch (e) { console.error('Logo error in PDF:', e.message); }
+
         doc.fillColor('#1e293b').fontSize(32).font('Helvetica-Bold')
-            .text('INVOICE', leftMargin, headerY + 15, { align: 'right', width: rightMargin - leftMargin });
+            .text('INVOICE', leftMargin, headerY + 10, { align: 'right', width: rightMargin - leftMargin });
 
         headerY += 80;
         doc.moveTo(leftMargin, headerY).lineTo(rightMargin, headerY).lineWidth(3).strokeColor('#bdf53d').stroke();
-
         headerY += 25;
-        // Invoice Details Grid
+
         doc.fillColor('#64748b').fontSize(8).font('Helvetica-Bold').text('INVOICE TO:', leftMargin, headerY);
         doc.text('INVOICE DETAILS:', 350, headerY);
-
         headerY += 14;
-        doc.fillColor('#1e293b').fontSize(14).font('Helvetica-Bold').text(customerName || 'Quick Customer', leftMargin, headerY);
-
-        // Right side details
+        doc.fillColor('#1e293b').fontSize(14).font('Helvetica-Bold').text(invoiceData.customerName || 'Quick Customer', leftMargin, headerY);
         doc.fontSize(9).font('Helvetica').text('Invoice #:', 350, headerY);
-        doc.font('Helvetica-Bold').text(invoiceNumber, 420, headerY);
-
+        doc.font('Helvetica-Bold').text(invoiceData.invoiceNumber, 420, headerY);
         headerY += 16;
         doc.font('Helvetica').text('Date:', 350, headerY);
-        doc.font('Helvetica-Bold').text(new Date().toLocaleDateString(), 420, headerY);
-
+        doc.font('Helvetica-Bold').text(new Date(invoiceData.createdAt || Date.now()).toLocaleDateString(), 420, headerY);
         headerY += 16;
         doc.font('Helvetica').text('Status:', 350, headerY);
-        const statusColor = status === 'Paid' ? '#10b981' : '#f59e0b';
-        doc.fillColor(statusColor).font('Helvetica-Bold').text((status || 'PENDING').toUpperCase(), 420, headerY);
+        const sColor = invoiceData.status === 'Paid' ? '#10b981' : '#f59e0b';
+        doc.fillColor(sColor).font('Helvetica-Bold').text((invoiceData.status || 'PENDING').toUpperCase(), 420, headerY);
 
-        // FROM section
-        headerY = 140 + 25;
+        headerY = 165;
         doc.fillColor('#64748b').fontSize(8).font('Helvetica-Bold').text('FROM:', leftMargin, headerY);
         doc.fillColor('#1e293b').fontSize(10).font('Helvetica-Bold').text(companyName, leftMargin, headerY + 12);
-        doc.fontSize(8).font('Helvetica').fillColor('#475569').text(companyAddress + `\nPhone: ${companyPhone}`, leftMargin, headerY + 24, { width: 250 });
+        doc.fontSize(8).font('Helvetica').fillColor('#475569')
+            .text(companyAddress + '\nPhone: ' + companyPhone, leftMargin, headerY + 24, { width: 250 });
 
-        // --- TABLE SECTION ---
-        let tableTop = 240;
+        let tableTop = 250;
         doc.rect(leftMargin, tableTop, 515, 25).fill('#1e293b');
         doc.fontSize(9).font('Helvetica-Bold').fillColor('#fff');
         doc.text('DESCRIPTION', col1 + 10, tableTop + 8);
@@ -682,74 +408,106 @@ app.post('/api/invoices/pdf', (req, res) => {
         doc.text('TOTAL', col5, tableTop + 8, { width: 75, align: 'right' });
 
         let y = tableTop + 30;
-        (items || []).forEach((item, index) => {
+        let subtotalCalc = 0;
+        (invoiceData.items || []).forEach(function (item, index) {
             const qty = parseFloat(item.qty || item.quantity || 0);
             const price = parseFloat(item.price || 0);
-            const lineSubtotal = price * qty;
-            const lineTax = lineSubtotal * (currentTaxRate / 100);
-            const lineTotal = lineSubtotal + lineTax;
-
-            if (index % 2 === 1) {
-                doc.rect(leftMargin, y - 5, 515, 20).fill('#f8fafc');
-            }
-
+            const lineSub = price * qty;
+            subtotalCalc += lineSub;
+            const lineTotal = lineSub + lineSub * (currentTaxRate / 100);
+            if (index % 2 === 1) doc.rect(leftMargin, y - 5, 515, 20).fill('#f8fafc');
             doc.font('Helvetica').fontSize(9).fillColor('#1e293b');
-            doc.text(item.name || item.product_name, col1 + 10, y, { width: 220 });
+            doc.text(item.name || item.product_name || '', col1 + 10, y, { width: 220 });
             doc.text(qty.toString(), col2, y, { width: 40, align: 'center' });
             doc.text(price.toLocaleString(undefined, { minimumFractionDigits: 2 }), col3, y, { width: 80, align: 'right' });
-            doc.text(`${currentTaxRate}%`, col4, y, { width: 40, align: 'right' });
+            doc.text(currentTaxRate + '%', col4, y, { width: 40, align: 'right' });
             doc.text(lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2 }), col5, y, { width: 75, align: 'right' });
-
             y += 20;
             if (y > 650) { doc.addPage(); y = 50; }
         });
 
-        // --- TOTALS SECTION ---
         y += 20;
         const totalBoxWidth = 200;
         const totalBoxX = rightMargin - totalBoxWidth;
-
-        const numSubtotal = parseFloat(subtotal) || 0;
-        const numDiscount = parseFloat(discount) || 0;
-        const numTax = parseFloat(tax) || 0;
-        const numGrandTotal = parseFloat(grandTotal) || 0;
+        const numSubtotal = parseFloat(invoiceData.subtotal) || subtotalCalc;
+        const numDiscount = parseFloat(invoiceData.discount) || 0;
+        const numTax = parseFloat(invoiceData.tax) || (numSubtotal - numDiscount) * (currentTaxRate / 100);
+        const numGrandTotal = parseFloat(invoiceData.grandTotal || invoiceData.total_amount) || 0;
 
         doc.fontSize(10).font('Helvetica').fillColor('#64748b').text('Subtotal:', totalBoxX, y, { width: 100, align: 'right' });
-        doc.font('Helvetica-Bold').fillColor('#1e293b').text(`${currency} ${numSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, totalBoxX + 105, y, { width: 95, align: 'right' });
+        doc.font('Helvetica-Bold').fillColor('#1e293b').text(currency + ' ' + numSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2 }), totalBoxX + 105, y, { width: 95, align: 'right' });
         y += 18;
-
         if (numDiscount > 0) {
             doc.font('Helvetica').fillColor('#64748b').text('Discount:', totalBoxX, y, { width: 100, align: 'right' });
-            doc.font('Helvetica-Bold').fillColor('#ef4444').text(`- ${currency} ${numDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, totalBoxX + 105, y, { width: 95, align: 'right' });
+            doc.font('Helvetica-Bold').fillColor('#ef4444').text('- ' + currency + ' ' + numDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 }), totalBoxX + 105, y, { width: 95, align: 'right' });
             y += 18;
         }
-
-        doc.font('Helvetica').fillColor('#64748b').text(`VAT (${currentTaxRate}%):`, totalBoxX, y, { width: 100, align: 'right' });
-        doc.font('Helvetica-Bold').fillColor('#1e293b').text(`${currency} ${numTax.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, totalBoxX + 105, y, { width: 95, align: 'right' });
+        doc.font('Helvetica').fillColor('#64748b').text('VAT (' + currentTaxRate + '%):', totalBoxX, y, { width: 100, align: 'right' });
+        doc.font('Helvetica-Bold').fillColor('#1e293b').text(currency + ' ' + numTax.toLocaleString(undefined, { minimumFractionDigits: 2 }), totalBoxX + 105, y, { width: 95, align: 'right' });
         y += 25;
-
-        // Grand Total Box
         doc.rect(totalBoxX, y - 8, totalBoxWidth + 5, 35).fill('#1e293b');
         doc.fillColor('#bdf53d').fontSize(12).font('Helvetica-Bold').text('TOTAL PAYABLE', totalBoxX + 10, y + 2);
-        doc.text(`${currency} ${numGrandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, totalBoxX + 110, y + 2, { width: 85, align: 'right' });
+        doc.text(currency + ' ' + numGrandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 }), totalBoxX + 110, y + 2, { width: 85, align: 'right' });
 
-        // --- NEW INFORMATION SECTIONS ---
         y += 60;
         if (y > 700) { doc.addPage(); y = 50; }
-
         const infoColW = 240;
-        // Payment Info
+        const pm = invoiceData.paymentMethod || invoiceData.payment_method || 'Bank Transfer';
         doc.fillColor('#64748b').fontSize(9).font('Helvetica-Bold').text('PAYMENT INFORMATION', leftMargin, y);
-        doc.fillColor('#1e293b').fontSize(8).font('Helvetica').text(`Method: ${paymentMethod || 'Bank Transfer'}\nBank Name: Qatar National Bank (QNB)\nAccount Name: EVER LOOPS CARPETS W.L.L.\nIBAN: QA45 QNBA 0000 0000 1234 5678 9012`, leftMargin, y + 15, { width: infoColW, lineGap: 3 });
-
-        // Terms & conditions
+        doc.fillColor('#1e293b').fontSize(8).font('Helvetica')
+            .text('Method: ' + pm + '\nBank Name: Qatar National Bank (QNB)\nAccount Name: EVER LOOPS CARPETS W.L.L.\nIBAN: QA45 QNBA 0000 0000 1234 5678 9012', leftMargin, y + 15, { width: infoColW, lineGap: 3 });
         doc.fillColor('#64748b').fontSize(9).font('Helvetica-Bold').text('TERMS & CONDITIONS', 315, y);
-        doc.fillColor('#1e293b').fontSize(8).font('Helvetica').text(`1. Goods once sold will not be exchanged or returned.\n2. Warranty covers manufacturing defects only.\n3. Installation is not included unless specified.\n4. Possession is effective after full payment.`, 315, y + 15, { width: infoColW, lineGap: 3 });
+        doc.fillColor('#1e293b').fontSize(8).font('Helvetica')
+            .text('1. Goods once sold will not be exchanged or returned.\n2. Warranty covers manufacturing defects only.\n3. Installation is not included unless specified.\n4. Possession is effective after full payment.', 315, y + 15, { width: infoColW, lineGap: 3 });
 
-        // --- FOOTER SECTION ---
-        doc.fontSize(8).fillColor('#94a3b8').font('Helvetica-Oblique').text('Thank you for choosing Ever Loops Carpets. This is a computer-generated invoice.', leftMargin, 790, { align: 'center', width: 515 });
-
+        doc.fontSize(8).fillColor('#94a3b8').font('Helvetica-Oblique')
+            .text('Thank you for choosing Ever Loops Carpets. This is a computer-generated invoice.', leftMargin, 790, { align: 'center', width: 515 });
         doc.end();
+    });
+}
+
+// GET existing invoice as PDF
+app.get('/api/invoices/:id/pdf', (req, res) => {
+    const invoiceId = req.params.id;
+    db.get('SELECT invoices.*, customers.name as customer_name FROM invoices LEFT JOIN customers ON invoices.customer_id = customers.id WHERE invoices.id = ?', [invoiceId], (err, invoice) => {
+        if (err || !invoice) return res.status(404).json({ error: 'Invoice not found' });
+        db.all('SELECT invoice_items.*, inventory.name as product_name FROM invoice_items JOIN inventory ON invoice_items.product_id = inventory.id WHERE invoice_items.invoice_id = ?', [invoiceId], (err, items) => {
+            if (err) return res.status(500).json({ error: err.message });
+            db.get('SELECT * FROM settings WHERE id = 1', (err, settings) => {
+                const invoiceData = {
+                    customerName: invoice.customer_name, invoiceNumber: invoice.invoice_number,
+                    createdAt: invoice.created_at, status: invoice.status, paymentMethod: invoice.payment_method,
+                    subtotal: null, discount: invoice.discount, tax: null, grandTotal: invoice.total_amount,
+                    items: (items || []).map(function (i) { return { name: i.product_name, qty: i.quantity, price: i.price }; })
+                };
+                generateInvoicePDFBuffer(invoiceData, settings)
+                    .then(function (pdfBuffer) {
+                        res.setHeader('Content-Disposition', 'attachment; filename="' + invoice.invoice_number + '.pdf"');
+                        res.setHeader('Content-Type', 'application/pdf');
+                        res.setHeader('Content-Length', pdfBuffer.length);
+                        res.end(pdfBuffer);
+                        try { fs.writeFileSync(path.join(INVOICES_DIR, invoice.invoice_number + '.pdf'), pdfBuffer); } catch (e) { }
+                    })
+                    .catch(function (e) { res.status(500).json({ error: 'PDF failed: ' + e.message }); });
+            });
+        });
+    });
+});
+
+// POST - generate PDF inline (for invoice preview/download button)
+app.post('/api/invoices/pdf', (req, res) => {
+    const { customerName, invoiceNumber, items, subtotal, tax, grandTotal, discount, paymentMethod, status } = req.body;
+    db.get('SELECT * FROM settings WHERE id = 1', (err, settings) => {
+        const invoiceData = { customerName, invoiceNumber, items, subtotal, tax, grandTotal, discount, paymentMethod, status };
+        generateInvoicePDFBuffer(invoiceData, settings)
+            .then(function (pdfBuffer) {
+                res.setHeader('Content-Disposition', 'attachment; filename="' + invoiceNumber + '.pdf"');
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Length', pdfBuffer.length);
+                res.end(pdfBuffer);
+                try { fs.writeFileSync(path.join(INVOICES_DIR, invoiceNumber + '.pdf'), pdfBuffer); } catch (e) { }
+            })
+            .catch(function (e) { res.status(500).json({ error: 'PDF failed: ' + e.message }); });
     });
 });
 
