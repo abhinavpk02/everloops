@@ -2,6 +2,9 @@
     "version": 2,
     "rewrites": [
         {
+            "handle": "filesystem"
+        },
+        {
             "source": "/(.*)",
             "destination": "/server.js"
         }

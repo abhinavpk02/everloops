@@ -581,27 +581,8 @@ app.get('/api/reports', (req, res) => {
     });
 });
 
-// Fallback to serve index.html for any other route
-app.get('/styles.css', (req, res) => {
-    res.sendFile(path.join(__dirname, 'styles.css'));
-});
-
-app.get('/app.js', (req, res) => {
-    res.sendFile(path.join(__dirname, 'app.js'));
-});
-
 // --- PAGE ROUTING ---
-// 1. Specific route for the Login Page
-app.get('/login.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'login.html'));
-});
-
-// 2. Specific route for the Dashboard
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// 3. Global Fallback (Catch-all)
+// Global Fallback (Catch-all) for SPA
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
