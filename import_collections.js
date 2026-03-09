@@ -43,34 +43,39 @@ async function importCollections() {
             const rebrandedName = item.rebranded;
             const collectionPath = path.join(COLLECTIONS_DIR, rebrandedName);
 
-            let imagePath = '';
             if (fs.existsSync(collectionPath)) {
                 const files = fs.readdirSync(collectionPath);
-                // Find first non-thumb JPG/PNG
-                const mainImage = files.find(f =>
+                // Find all thumb JPG/PNG
+                const thumbImages = files.filter(f =>
                     (f.toLowerCase().endsWith('.jpg') || f.toLowerCase().endsWith('.png')) &&
-                    !f.toLowerCase().includes('thumb')
+                    f.toLowerCase().includes('thumb')
                 );
 
-                if (mainImage) {
-                    imagePath = `/collections/${rebrandedName}/${mainImage}`;
+                for (let i = 0; i < thumbImages.length; i++) {
+                    const thumbImage = thumbImages[i];
+                    const imagePath = `/collections/${rebrandedName}/${thumbImage}`;
+
+                    // Create a unique SKU for each variant
+                    const variantSuffix = (i + 1).toString().padStart(3, '0');
+                    const sku = `EVR-${rebrandedName.toUpperCase().replace(/\s+/g, '-')}-${variantSuffix}`;
+
+                    const price = 0;
+                    const stock = 10;
+                    const dimensions = '50x50 cm';
+                    const material = 'Premium';
+                    const type = 'Carpet Tile';
+                    const description = `Collection: ${rebrandedName} (Original: ${item.original})`;
+
+                    await client.execute({
+                        sql: "INSERT INTO inventory (name, sku, type, material, dimensions, stock, price, description, image_pattern) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        args: [rebrandedName, sku, type, material, dimensions, stock, price, description, imagePath]
+                    });
+
+                    count++;
                 }
             }
 
-            const sku = `EVR-${rebrandedName.toUpperCase().replace(/\s+/g, '-')}-001`;
-            const price = 0;
-            const stock = 10;
-            const dimensions = 'Standard';
-            const material = 'Premium';
-            const description = `Collection: ${rebrandedName} (Original: ${item.original})`;
-
-            await client.execute({
-                sql: "INSERT INTO inventory (name, sku, type, material, dimensions, stock, price, description, image_pattern) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                args: [rebrandedName, sku, 'Collection', material, dimensions, stock, price, description, imagePath]
-            });
-
-            count++;
-            if (count % 10 === 0) console.log(`Imported ${count} items...`);
+            if (count > 0 && count % 20 === 0) console.log(`Imported ${count} items...`);
         }
 
         console.log(`--- Import Complete! Total: ${count} items. ---`);

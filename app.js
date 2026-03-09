@@ -686,20 +686,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     card.innerHTML = `
                         <div class="inv-img ${patternClass}" ${bgStyle}></div>
-                        <div class="inv-details">
-                            <div class="inv-head" style="flex-direction: column; gap: 0.25rem;">
-                                <h4 style="font-size: 1.25rem;">${item.name}</h4>
-                                <span class="stock ${stockClass}" style="align-self: flex-start; font-size: 0.75rem;">${item.stock > 0 ? `Stock left: ${item.stock}` : 'Out of Stock'}</span>
+                        <div class="inv-details" style="padding: 1rem 1.25rem;">
+                            <div class="inv-head" style="margin-bottom: 0.75rem;">
+                                <h4 style="font-size: 1.15rem; margin:0; line-height: 1.3;">${item.name}</h4>
+                                <span class="stock ${stockClass}" style="font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-top:0.4rem;">
+                                    ${item.stock > 0 ? `Stock: ${item.stock}` : 'Out of Stock'}
+                                </span>
                             </div>
-                            <p class="sku text-muted" style="margin-bottom: 0.5rem;">SKU: ${item.sku} • ${item.dimensions}</p>
-                            <div class="inv-price" style="display:flex; flex-direction:column; gap: 1rem; margin-top:auto;">
-                                <h3 style="font-size: 1.6rem; color: var(--text-main);">QAR ${item.price.toLocaleString()}</h3>
-                                <div style="display:flex; justify-content: space-between; gap: 1rem; margin-top: 0.5rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
-                                    <button type="button" class="btn-text" style="color:var(--text-muted); font-size:0.8rem;" onclick='editInventoryItem(${safeItemStr})'>
-                                        <i data-lucide="edit"></i> Edit
+                            
+                            <div class="inv-specs" style="display:flex; flex-direction:column; gap:0.35rem; margin-bottom: 1rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+                                <p style="margin:0; font-size: 0.8rem; color: var(--text-main); font-weight: 500;">
+                                    SKU: <span style="font-weight: 400; color: var(--text-muted);">${item.sku}</span>
+                                </p>
+                                <p style="margin:0; font-size: 0.8rem; color: var(--text-main); font-weight: 500;">
+                                    Type: <span style="font-weight: 400; color: var(--text-muted);">${item.type || '-'}</span>
+                                </p>
+                                <p style="margin:0; font-size: 0.8rem; color: var(--text-main); font-weight: 500;">
+                                    Dim: <span style="font-weight: 400; color: var(--text-muted);">${item.dimensions || '-'}</span>
+                                </p>
+                            </div>
+
+                            <p style="margin:0 0 1rem 0; font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.1rem;">
+                                ${item.description || 'No description available.'}
+                            </p>
+
+                            <div class="inv-price-footer" style="display:flex; justify-content: space-between; align-items: center; margin-top: auto; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+                                <h3 style="font-size: 1.35rem; color: var(--primary); margin:0;">${item.price > 0 ? `QAR ${item.price.toLocaleString()}` : 'Custom'}</h3>
+                                <div style="display:flex; gap: 0.5rem;">
+                                    <button type="button" class="btn-icon" title="Edit" onclick='editInventoryItem(${safeItemStr})'>
+                                        <i data-lucide="edit"></i>
                                     </button>
-                                    <button type="button" class="btn-text" style="color:var(--danger); font-size:0.8rem;" onclick="deleteInventoryItem(${item.id})">
-                                        <i data-lucide="trash-2"></i> Delete
+                                    <button type="button" class="btn-icon danger" title="Delete" onclick="deleteInventoryItem(${item.id})">
+                                        <i data-lucide="trash-2"></i>
                                     </button>
                                 </div>
                             </div>
