@@ -1,28 +1,21 @@
 {
     "version": 2,
-    "builds": [
-        {
-            "src": "server.js",
-            "use": "@vercel/node"
-        }
-    ],
+    "cleanUrls": true,
     "routes": [
         {
+            "handle": "filesystem"
+        },
+        {
+            "src": "/login.html",
+            "dest": "/login.html"
+        },
+        {
             "src": "/api/(.*)",
-            "dest": "server.js"
-        },
-        {
-            "src": "/uploads/(.*)",
-            "dest": "/uploads/$1"
+            "dest": "/server.js"
         },
         {
             "src": "/(.*)",
-            "dest": "/$1",
-            "check": true
-        },
-        {
-            "src": "/(.*)",
-            "dest": "server.js"
+            "dest": "/server.js"
         }
     ]
 }
