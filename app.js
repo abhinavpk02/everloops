@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Custom fetch wrapper to inject token and handle 401s
-    window.apiFetch = function(url, options = {}) {
+    window.apiFetch = function (url, options = {}) {
         const headers = options.headers || {};
         // If body is FormData, do not set Content-Type header so browser sets multipart/form-data with boundary
         if (!(options.body instanceof FormData) && !headers['Content-Type']) {
@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const name = profileData.name || localStorage.getItem('name');
         const username = profileData.username || localStorage.getItem('username');
         const dp = profileData.display_picture || localStorage.getItem('display_picture');
-        
+
         // Update localStorage to keep in sync
         if (profileData.name) localStorage.setItem('name', profileData.name);
         if (profileData.display_picture) localStorage.setItem('display_picture', profileData.display_picture);
@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const userRoleElem = document.querySelector('.user-role');
         const userNameElem = document.querySelector('.user-name');
         const avatarElem = document.querySelector('.avatar');
-        
+
         if (userRoleElem && role) userRoleElem.textContent = role === 'admin' ? 'Administrator' : 'Staff Member';
         if (userNameElem) userNameElem.textContent = displayName;
         if (avatarElem) {
@@ -68,9 +68,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Also update Admin Header Dropdown
         const adminBtn = document.getElementById('admin-profile-btn');
         const adminDropdownNameEl = document.querySelector('#admin-dropdown p:first-of-type');
-        
+
         if (adminDropdownNameEl) adminDropdownNameEl.textContent = displayName;
-        
+
         if (adminBtn) {
             if (dp && dp !== 'undefined' && dp !== 'null') {
                 adminBtn.style.backgroundImage = `url(${dp})`;
@@ -114,10 +114,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Profile Dropdown Toggle Logic
     const profileBtn = document.getElementById('admin-profile-btn');
     const profileDropdown = document.getElementById('admin-dropdown');
-    
+
     if (profileBtn && profileDropdown) {
         profileBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); 
+            e.stopPropagation();
             profileDropdown.classList.toggle('active');
         });
 
@@ -167,10 +167,10 @@ document.addEventListener('DOMContentLoaded', () => {
         btnChangePwd.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            
+
             // Close dropdown
             if (profileDropdown) profileDropdown.classList.remove('active');
-            
+
             // Reset and show modal
             const formChangePassword = document.getElementById('form-change-password');
             if (modals.changePassword && formChangePassword) {
@@ -188,17 +188,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (role !== 'admin') {
         const settingsNavBtn = document.querySelector('.nav-btn[data-view="settings"]');
         if (settingsNavBtn) settingsNavBtn.style.display = 'none';
-        
+
         // Also hide Change Password for non-admin for now (or let them use it if you want)
     }
 
     // Theme Toggle Logic
     const themeCheckbox = document.getElementById('theme-checkbox');
-    
+
     // Check saved theme
     const savedTheme = localStorage.getItem('theme') || 'dark';
     document.body.setAttribute('data-theme', savedTheme);
-    
+
     // Set initial checkbox state
     if (themeCheckbox) {
         themeCheckbox.checked = (savedTheme === 'dark');
@@ -246,13 +246,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // Find target view and activate it
             const targetViewId = 'view-' + clickedBtn.getAttribute('data-view');
             const targetView = document.getElementById(targetViewId);
-            
+
             if (targetView) {
                 targetView.classList.add('active');
-                
+
                 // Update header title based on button text
                 pageTitle.textContent = clickedBtn.textContent.trim();
-                
+
                 // Fetch dynamic data based on view
                 const viewName = clickedBtn.getAttribute('data-view');
                 if (viewName === 'dashboard') {
@@ -290,7 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
         apiFetch('/api/settings')
             .then(res => res.json())
             .then(data => {
-                if(data) {
+                if (data) {
                     window.appSettings = data;
                     // Populate UI
                     document.getElementById('set-company').value = data.company_name;
@@ -299,14 +299,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('set-currency').value = data.currency;
                     document.getElementById('set-tax').value = data.tax_rate;
                     document.getElementById('set-prefix').value = data.invoice_prefix;
-                    
+
                     // Populate Invoice Preview
                     const previewName = document.getElementById('preview-company-name');
                     if (previewName) {
                         previewName.textContent = data.company_name;
                         document.getElementById('preview-company-address').textContent = data.address.replace(/\\n/g, ', ');
                         document.getElementById('preview-company-phone').textContent = data.phone;
-                        
+
                         const previewLogo = document.getElementById('preview-logo');
                         if (data.company_logo && previewLogo) {
                             previewLogo.src = data.company_logo;
@@ -326,11 +326,11 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .catch(console.error);
     }
-    
+
     function fetchDashboard() {
         // Set today's date
         const dateDash = document.getElementById('current-date-dash');
-        if (dateDash) dateDash.textContent = new Date().toLocaleDateString('en-GB', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+        if (dateDash) dateDash.textContent = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
         apiFetch('/api/stats')
             .then(res => res.json())
@@ -338,10 +338,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const currency = window.appSettings?.currency || 'QAR';
 
                 // Stat cards
-                document.getElementById('stat-daily-revenue').textContent = currency + ' ' + (data.dailyRevenue || 0).toLocaleString(undefined, {minimumFractionDigits:0});
-                document.getElementById('stat-total-revenue').textContent = currency + ' ' + (data.totalRevenue || 0).toLocaleString(undefined, {minimumFractionDigits:0});
+                document.getElementById('stat-daily-revenue').textContent = currency + ' ' + (data.dailyRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 0 });
+                document.getElementById('stat-total-revenue').textContent = currency + ' ' + (data.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 0 });
                 document.getElementById('stat-invoices-sent').textContent = data.invoicesSent || 0;
-                document.getElementById('stat-pending-payments').textContent = currency + ' ' + (data.pendingPayments || 0).toLocaleString(undefined, {minimumFractionDigits:0});
+                document.getElementById('stat-pending-payments').textContent = currency + ' ' + (data.pendingPayments || 0).toLocaleString(undefined, { minimumFractionDigits: 0 });
                 const custEl = document.getElementById('stat-active-customers');
                 if (custEl) custEl.textContent = data.activeCustomers || 0;
                 const invCountEl = document.getElementById('stat-inventory-count');
@@ -360,7 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <tr>
                                     <td style="font-weight:500;">#${inv.invoice_number}</td>
                                     <td>${inv.customer_name || 'Unknown'}</td>
-                                    <td style="font-weight:600;">${currency} ${parseFloat(inv.total_amount).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+                                    <td style="font-weight:600;">${currency} ${parseFloat(inv.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                     <td><span class="status-badge ${statusClass}">${inv.status}</span></td>
                                     <td><button class="btn-text" style="font-size:0.8rem;padding:0.2rem 0.4rem;" onclick="viewInvoice(${inv.id})"><i data-lucide="eye"></i></button></td>
                                 </tr>
@@ -423,7 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function fetchReports(period = 'monthly') {
         const salesChartEl = document.getElementById('salesChart');
         if (!salesChartEl) return;
-        
+
         apiFetch(`/api/reports?period=${period}`)
             .then(res => res.json())
             .then(data => {
@@ -443,7 +443,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 salesChartInstance = new Chart(salesCtx, {
                     type: 'line',
                     data: {
-                        labels: data.sales.map(s => s.label),
+                        labels: data.sales.map(s => {
+                            // Format labels like "2023-10" to something nicer if possible
+                            if (period === 'monthly') {
+                                const [year, month] = s.label.split('-');
+                                const date = new Date(year, month - 1);
+                                return date.toLocaleString('default', { month: 'short', year: '2-digit' });
+                            }
+                            return s.label;
+                        }),
                         datasets: [{
                             label: `${periodCapitalized} Revenue`,
                             data: data.sales.map(s => s.revenue),
@@ -468,7 +476,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                 titleFont: { size: 14, weight: 'bold' },
                                 padding: 12,
                                 cornerRadius: 8,
-                                displayColors: false
+                                displayColors: false,
+                                callbacks: {
+                                    label: function (context) {
+                                        return 'QAR ' + context.parsed.y.toLocaleString();
+                                    }
+                                }
                             }
                         },
                         scales: {
@@ -534,17 +547,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tableBody = document.querySelector('#top-selling-table tbody');
                 if (tableBody && data.products) {
                     tableBody.innerHTML = '';
-                    data.products.forEach(p => {
-                        const revenue = p.sold_count * 1200; // Mock calculation if revenue is not provided
-                        tableBody.innerHTML += `
-                            <tr>
-                                <td style="font-weight:600;">${p.name}</td>
-                                <td>${p.sold_count} Units</td>
-                                <td>QAR ${revenue.toLocaleString()}</td>
-                                <td><span class="status-badge paid" style="background:rgba(16, 185, 129, 0.1); color:#10b981;">+12% <i data-lucide="trending-up" style="font-size:0.8rem;"></i></span></td>
-                            </tr>
-                        `;
-                    });
+                    if (data.products.length === 0) {
+                        tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:1.5rem; color:var(--text-muted);">No sales data for this period yet</td></tr>';
+                    } else {
+                        data.products.forEach(p => {
+                            // Use units sold, and if we had price we'd use it, for now units is the key stat
+                            tableBody.innerHTML += `
+                                <tr>
+                                    <td style="font-weight:600;">${p.name}</td>
+                                    <td>${p.sold_count} Units</td>
+                                    <td>-</td>
+                                    <td><span class="status-badge paid" style="background:rgba(16, 185, 129, 0.1); color:#10b981;">Active</span></td>
+                                </tr>
+                            `;
+                        });
+                    }
                     lucide.createIcons(); // Refresh icons for the table
                 }
             })
@@ -586,7 +603,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Expose editCustomer to window so onClick works
-    window.editCustomer = function(customer) {
+    window.editCustomer = function (customer) {
         document.getElementById('edit-cust-id').value = customer.id;
         document.getElementById('edit-cust-name').value = customer.name;
         document.getElementById('edit-cust-email').value = customer.email || '';
@@ -595,15 +612,15 @@ document.addEventListener('DOMContentLoaded', () => {
         modals.editCustomer.classList.add('active');
     };
 
-    window.viewCustomerHistory = function(id, name) {
+    window.viewCustomerHistory = function (id, name) {
         document.getElementById('hist-cust-name-title').textContent = `Purchase History: ${name}`;
         document.getElementById('hist-cust-info').textContent = `Customer ID: #${id}`;
-        
+
         const tbody = document.getElementById('customer-history-tbody');
         tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Loading history...</td></tr>';
-        
+
         modals.history.classList.add('active');
-        
+
         apiFetch(`/api/customers/${id}/history`)
             .then(res => res.json())
             .then(data => {
@@ -620,7 +637,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td>${date}</td>
                         <td>${inv.payment_method}</td>
                         <td><span class="status-badge ${inv.status.toLowerCase()}">${inv.status}</span></td>
-                        <td style="font-weight:600;">QAR ${inv.total_amount.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                        <td style="font-weight:600;">QAR ${inv.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                         <td style="text-align:center;">
                             <button class="btn-text" onclick="viewInvoice(${inv.id})" title="View Invoice" style="gap:0.3rem; margin:auto;">
                                 <i data-lucide="eye"></i> View
@@ -639,9 +656,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function fetchInventory() {
         const grid = document.querySelector('.inventory-grid');
         if (!grid) return;
-        
+
         grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:2rem;">Loading inventory...</div>';
-        
+
         apiFetch('/api/inventory')
             .then(res => res.json())
             .then(data => {
@@ -656,17 +673,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     card.style.border = '1px solid var(--border-color)';
                     card.style.borderRadius = '4px';
                     card.style.background = 'var(--bg-main)';
-                    
+
                     const stockClass = item.stock < 5 ? 'low' : 'good';
                     const safeItemStr = JSON.stringify(item).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-                    
+
                     let bgStyle = '';
                     let patternClass = item.image_pattern;
                     if (item.image_pattern && item.image_pattern.startsWith('/uploads')) {
                         patternClass = '';
                         bgStyle = `style="background-image: url('${item.image_pattern}'); background-size: cover; background-position: center;"`;
                     }
-                    
+
                     card.innerHTML = `
                         <div class="inv-img ${patternClass}" ${bgStyle}></div>
                         <div class="inv-details">
@@ -699,9 +716,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Expose delete to window so onClick works
-    window.deleteInventoryItem = function(id) {
+    window.deleteInventoryItem = function (id) {
         if (!confirm('Are you sure you want to delete this carpet from inventory?')) return;
-        
+
         apiFetch(`/api/inventory/${id}`, { method: 'DELETE' })
             .then(res => res.json())
             .then(data => {
@@ -710,7 +727,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(err => alert('Failed to delete item'));
     };
 
-    window.editInventoryItem = function(item) {
+    window.editInventoryItem = function (item) {
         document.getElementById('edit-inv-id').value = item.id;
         document.getElementById('edit-inv-name').value = item.name;
         document.getElementById('edit-inv-sku').value = item.sku;
@@ -720,12 +737,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('edit-inv-dim').value = item.dimensions || '';
         document.getElementById('edit-inv-price').value = item.price;
         document.getElementById('edit-inv-stock').value = item.stock;
-        
+
         // If it's a built-in pattern, pre-select it
         if (item.image_pattern && item.image_pattern.startsWith('bg-pattern-')) {
             document.getElementById('edit-inv-pattern').value = item.image_pattern;
         }
-        
+
         modals.editInventory.classList.add('active');
     };
 
@@ -790,61 +807,61 @@ document.addEventListener('DOMContentLoaded', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(invoiceData)
         })
-        .then(res => res.json())
-        .then(data => {
-            const customerName = document.getElementById('inv-customer-search').value;
-            
-            const pdfData = {
-                customerName: customerName,
-                invoiceNumber: data.invoice_number,
-                items: invoiceItems,
-                subtotal: subtotal, 
-                tax: tax,
-                grandTotal: totalAmount,
-                discount: discount,
-                paymentMethod: paymentMethod,
-                status: status
-            };
+            .then(res => res.json())
+            .then(data => {
+                const customerName = document.getElementById('inv-customer-search').value;
 
-            return apiFetch('/api/invoices/pdf', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(pdfData)
+                const pdfData = {
+                    customerName: customerName,
+                    invoiceNumber: data.invoice_number,
+                    items: invoiceItems,
+                    subtotal: subtotal,
+                    tax: tax,
+                    grandTotal: totalAmount,
+                    discount: discount,
+                    paymentMethod: paymentMethod,
+                    status: status
+                };
+
+                return apiFetch('/api/invoices/pdf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(pdfData)
+                })
+                    .then(res => {
+                        if (!res.ok) throw new Error('Invoice saved but PDF generation failed.');
+                        return res.blob();
+                    })
+                    .then(blob => {
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.style.display = 'none';
+                        a.href = url;
+                        a.download = `${data.invoice_number}.pdf`;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+
+                        // Reset invoice builder
+                        invoiceItems = [];
+                        renderInvoiceItems();
+                        document.getElementById('inv-customer-search').value = '';
+                        document.getElementById('inv-customer-id').value = '';
+                        document.getElementById('inv-item-search').value = '';
+                        document.getElementById('inv-discount').value = 0;
+
+                        // Refresh stats if on dashboard
+                        if (typeof fetchDashboard === 'function') fetchDashboard();
+                    });
             })
-            .then(res => {
-                if (!res.ok) throw new Error('Invoice saved but PDF generation failed.');
-                return res.blob();
+            .catch(err => {
+                console.error(err);
+                alert('Error generating invoice or PDF');
             })
-            .then(blob => {
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = `${data.invoice_number}.pdf`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                
-                // Reset invoice builder
-                invoiceItems = [];
-                renderInvoiceItems();
-                document.getElementById('inv-customer-search').value = '';
-                document.getElementById('inv-customer-id').value = '';
-                document.getElementById('inv-item-search').value = '';
-                document.getElementById('inv-discount').value = 0;
-                
-                // Refresh stats if on dashboard
-                if (typeof fetchDashboard === 'function') fetchDashboard();
+            .finally(() => {
+                btn.innerHTML = origText;
+                btn.disabled = false;
             });
-        })
-        .catch(err => {
-            console.error(err);
-            alert('Error generating invoice or PDF');
-        })
-        .finally(() => {
-            btn.innerHTML = origText;
-            btn.disabled = false;
-        });
     });
 
     document.getElementById('form-add-customer').addEventListener('submit', (e) => {
@@ -866,17 +883,17 @@ document.addEventListener('DOMContentLoaded', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(customerData)
         })
-        .then(res => res.json())
-        .then(data => {
-            modals.customer.classList.remove('active');
-            e.target.reset();
-            fetchCustomers(); // Refresh list
-        })
-        .catch(err => console.error(err))
-        .finally(() => {
-            btn.textContent = origText;
-            btn.disabled = false;
-        });
+            .then(res => res.json())
+            .then(data => {
+                modals.customer.classList.remove('active');
+                e.target.reset();
+                fetchCustomers(); // Refresh list
+            })
+            .catch(err => console.error(err))
+            .finally(() => {
+                btn.textContent = origText;
+                btn.disabled = false;
+            });
     });
 
     document.getElementById('form-edit-customer')?.addEventListener('submit', (e) => {
@@ -899,17 +916,17 @@ document.addEventListener('DOMContentLoaded', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(customerData)
         })
-        .then(res => res.json())
-        .then(data => {
-            modals.editCustomer.classList.remove('active');
-            e.target.reset();
-            fetchCustomers(); // Refresh list
-        })
-        .catch(err => console.error(err))
-        .finally(() => {
-            btn.textContent = origText;
-            btn.disabled = false;
-        });
+            .then(res => res.json())
+            .then(data => {
+                modals.editCustomer.classList.remove('active');
+                e.target.reset();
+                fetchCustomers(); // Refresh list
+            })
+            .catch(err => console.error(err))
+            .finally(() => {
+                btn.textContent = origText;
+                btn.disabled = false;
+            });
     });
 
     document.getElementById('form-add-inventory').addEventListener('submit', (e) => {
@@ -929,7 +946,7 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('price', document.getElementById('inv-price').value);
         formData.append('stock', document.getElementById('inv-stock').value);
         formData.append('image_pattern', document.getElementById('inv-pattern').value);
-        
+
         const imageFile = document.getElementById('inv-image').files[0];
         if (imageFile) {
             formData.append('image', imageFile);
@@ -939,17 +956,17 @@ document.addEventListener('DOMContentLoaded', () => {
             method: 'POST',
             body: formData
         })
-        .then(res => res.json())
-        .then(data => {
-            modals.inventory.classList.remove('active');
-            e.target.reset();
-            fetchInventory(); // Refresh list
-        })
-        .catch(err => alert('Error saving inventory'))
-        .finally(() => {
-            btn.textContent = origText;
-            btn.disabled = false;
-        });
+            .then(res => res.json())
+            .then(data => {
+                modals.inventory.classList.remove('active');
+                e.target.reset();
+                fetchInventory(); // Refresh list
+            })
+            .catch(err => alert('Error saving inventory'))
+            .finally(() => {
+                btn.textContent = origText;
+                btn.disabled = false;
+            });
     });
 
     document.getElementById('form-edit-inventory')?.addEventListener('submit', (e) => {
@@ -970,7 +987,7 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('price', document.getElementById('edit-inv-price').value);
         formData.append('stock', document.getElementById('edit-inv-stock').value);
         formData.append('image_pattern', document.getElementById('edit-inv-pattern').value);
-        
+
         const imageFile = document.getElementById('edit-inv-image').files[0];
         if (imageFile) {
             formData.append('image', imageFile);
@@ -980,19 +997,19 @@ document.addEventListener('DOMContentLoaded', () => {
             method: 'PUT',
             body: formData
         })
-        .then(res => res.json())
-        .then(data => {
-            modals.editInventory.classList.remove('active');
-            e.target.reset();
-            fetchInventory(); // Refresh list
-        })
-        .catch(err => alert('Error updating inventory'))
-        .finally(() => {
-            btn.textContent = origText;
-            btn.disabled = false;
-        });
+            .then(res => res.json())
+            .then(data => {
+                modals.editInventory.classList.remove('active');
+                e.target.reset();
+                fetchInventory(); // Refresh list
+            })
+            .catch(err => alert('Error updating inventory'))
+            .finally(() => {
+                btn.textContent = origText;
+                btn.disabled = false;
+            });
     });
-    
+
     // --- Invoice Builder Logic ---
     let invoiceItems = [];
 
@@ -1032,8 +1049,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         <tr style="background:${bg};">
                             <td style="padding:0.6rem 1rem; font-size:0.9rem; color:#1e293b; border-bottom:1px solid #f1f5f9;">${item.name}</td>
                             <td style="padding:0.6rem; text-align:center; font-size:0.9rem; color:#64748b; border-bottom:1px solid #f1f5f9;">${item.qty}</td>
-                            <td style="padding:0.6rem; text-align:right; font-size:0.9rem; color:#64748b; border-bottom:1px solid #f1f5f9;">${currency} ${item.price.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
-                            <td style="padding:0.6rem 1rem; text-align:right; font-size:0.9rem; font-weight:600; color:#1e293b; border-bottom:1px solid #f1f5f9;">${currency} ${lineTotal.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+                            <td style="padding:0.6rem; text-align:right; font-size:0.9rem; color:#64748b; border-bottom:1px solid #f1f5f9;">${currency} ${item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                            <td style="padding:0.6rem 1rem; text-align:right; font-size:0.9rem; font-weight:600; color:#1e293b; border-bottom:1px solid #f1f5f9;">${currency} ${lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                         </tr>
                     `;
                 });
@@ -1043,12 +1060,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const tax = (subtotal - discount) * (taxRate / 100);
             const grandTotal = subtotal - discount + tax;
 
-            document.getElementById('prv-subtotal').textContent = `${currency} ${subtotal.toLocaleString(undefined,{minimumFractionDigits:2})}`;
-            document.getElementById('prv-discount').textContent = `- ${currency} ${discount.toLocaleString(undefined,{minimumFractionDigits:2})}`;
+            document.getElementById('prv-subtotal').textContent = `${currency} ${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+            document.getElementById('prv-discount').textContent = `- ${currency} ${discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
             document.getElementById('prv-discount-row').style.display = discount > 0 ? 'flex' : 'none';
             document.getElementById('prv-tax-label').textContent = `Tax (${taxRate}%)`;
-            document.getElementById('prv-tax').textContent = `${currency} ${tax.toLocaleString(undefined,{minimumFractionDigits:2})}`;
-            document.getElementById('prv-total').textContent = `${currency} ${grandTotal.toLocaleString(undefined,{minimumFractionDigits:2})}`;
+            document.getElementById('prv-tax').textContent = `${currency} ${tax.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+            document.getElementById('prv-total').textContent = `${currency} ${grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
             // Status color
             const statusColors = { Paid: '#10b981', Pending: '#f59e0b', Overdue: '#ef4444' };
@@ -1089,7 +1106,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div style="font-size: 0.75rem; color: var(--text-muted);">${item.sku || 'No SKU'}</div>
                 </div>
                 <div style="text-align: center; font-weight: 500; font-size: 0.9rem;">x${item.qty}</div>
-                <div style="text-align: right; font-weight: 600; font-size: 0.95rem;">QAR ${lineTotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                <div style="text-align: right; font-weight: 600; font-size: 0.95rem;">QAR ${lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 <button type="button" class="icon-btn" onclick="window.removeInvoiceItem(${index})" style="color: var(--danger); background: transparent; border: none; padding: 0;">
                     <i data-lucide="trash-2" style="font-size: 1rem;"></i>
                 </button>
@@ -1108,13 +1125,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const tax = discountedSubtotal * currentTaxRate;
         const grandTotal = discountedSubtotal + tax;
         const currency = window.appSettings.currency || 'QAR';
-        
+
         document.getElementById('inv-tax-label').textContent = `Tax (${window.appSettings.tax_rate}%)`;
-        document.getElementById('inv-subtotal').textContent = `${currency} ${subtotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        document.getElementById('inv-discount-display').textContent = `- ${currency} ${discount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        document.getElementById('inv-tax').textContent = `${currency} ${tax.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        document.getElementById('inv-grand-total').textContent = `${currency} ${grandTotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        
+        document.getElementById('inv-subtotal').textContent = `${currency} ${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        document.getElementById('inv-discount-display').textContent = `- ${currency} ${discount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        document.getElementById('inv-tax').textContent = `${currency} ${tax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        document.getElementById('inv-grand-total').textContent = `${currency} ${grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
         // Save raw totals for submission
         const submitBtn = document.getElementById('btn-generate-invoice');
         if (submitBtn) {
@@ -1127,7 +1144,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('inv-discount')?.addEventListener('input', renderInvoiceItems);
 
-    window.removeInvoiceItem = function(index) {
+    window.removeInvoiceItem = function (index) {
         invoiceItems.splice(index, 1);
         renderInvoiceItems();
     };
@@ -1154,7 +1171,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tbody = document.querySelector('#invoices-list-table tbody');
         if (!tbody) return;
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Loading invoices...</td></tr>';
-        
+
         apiFetch('/api/invoices')
             .then(res => res.json())
             .then(data => {
@@ -1183,7 +1200,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td style="font-weight: 500;">#${inv.invoice_number}</td>
                 <td class="text-muted">${date}</td>
                 <td>${inv.customer_name || 'Unknown'}</td>
-                <td style="font-weight:600;">${window.appSettings?.currency || 'QAR'} ${inv.total_amount.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                <td style="font-weight:600;">${window.appSettings?.currency || 'QAR'} ${inv.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                 <td><span class="status-badge ${inv.status.toLowerCase()}">${inv.status}</span></td>
                 <td style="text-align:center;">
                     <button class="btn-text" onclick="viewInvoice(${inv.id})" title="View Invoice" style="gap:0.3rem; margin:auto;">
@@ -1197,7 +1214,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // View invoice details in modal
-    window.viewInvoice = function(id) {
+    window.viewInvoice = function (id) {
         const modal = document.getElementById('modal-view-invoice');
         const itemsTbody = document.getElementById('view-inv-items');
         itemsTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Loading...</td></tr>';
@@ -1211,8 +1228,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('view-inv-meta').textContent = `${new Date(inv.created_at).toLocaleDateString()} • ${inv.payment_method}`;
                 document.getElementById('view-inv-customer').textContent = inv.customer_name || 'Unknown';
                 document.getElementById('view-inv-status').innerHTML = `<span class="status-badge ${inv.status.toLowerCase()}">${inv.status}</span>`;
-                document.getElementById('view-inv-discount').textContent = `${currency} ${parseFloat(inv.discount || 0).toLocaleString(undefined, {minimumFractionDigits:2})}`;
-                document.getElementById('view-inv-total').textContent = `${currency} ${parseFloat(inv.total_amount).toLocaleString(undefined, {minimumFractionDigits:2})}`;
+                document.getElementById('view-inv-discount').textContent = `${currency} ${parseFloat(inv.discount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+                document.getElementById('view-inv-total').textContent = `${currency} ${parseFloat(inv.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
                 // Render items
                 itemsTbody.innerHTML = '';
@@ -1223,8 +1240,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         tr.innerHTML = `
                             <td>${item.product_name}</td>
                             <td style="text-align:center;">${item.quantity}</td>
-                            <td style="text-align:right;">${currency} ${item.price.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
-                            <td style="text-align:right; font-weight:600;">${currency} ${lineTotal.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                            <td style="text-align:right;">${currency} ${item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                            <td style="text-align:right; font-weight:600;">${currency} ${lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                         `;
                         itemsTbody.appendChild(tr);
                     });
@@ -1239,7 +1256,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     dlBtn.disabled = true;
                     const origContent = dlBtn.innerHTML;
                     dlBtn.innerHTML = '<i data-lucide="loader" class="spin"></i> Downloading...';
-                    
+
                     apiFetch(`/api/invoices/${id}/pdf`)
                         .then(res => {
                             if (!res.ok) throw new Error('Failed to download PDF');
@@ -1299,8 +1316,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderInvoicesList(allInvoicesList);
                 return;
             }
-            const filtered = allInvoicesList.filter(inv => 
-                (inv.invoice_number && inv.invoice_number.toLowerCase().includes(val)) || 
+            const filtered = allInvoicesList.filter(inv =>
+                (inv.invoice_number && inv.invoice_number.toLowerCase().includes(val)) ||
                 (inv.customer_name && inv.customer_name.toLowerCase().includes(val))
             );
             renderInvoicesList(filtered);
@@ -1341,11 +1358,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    window.selectSearchCustomer = function(id, name) {
+    window.selectSearchCustomer = function (id, name) {
         invCustSearch.value = name;
         custIdInput.value = id;
         custDropdown.classList.remove('active');
-        
+
         const billedToName = document.getElementById('billed-to-name');
         if (billedToName) {
             billedToName.textContent = name;
@@ -1365,8 +1382,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const filtered = allInventory.filter(i => 
-                i.name.toLowerCase().includes(val) || 
+            const filtered = allInventory.filter(i =>
+                i.name.toLowerCase().includes(val) ||
                 (i.sku && i.sku.toLowerCase().includes(val))
             );
 
@@ -1396,16 +1413,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    window.selectSearchItem = function(id, name, price) {
+    window.selectSearchItem = function (id, name, price) {
         const qty = parseInt(itemQty.value) || 1;
         const existing = invoiceItems.find(item => item.id == id);
-        
+
         if (existing) {
             existing.qty += qty;
         } else {
             invoiceItems.push({ id, name, price, qty });
         }
-        
+
         renderInvoiceItems();
         invItemSearch.value = '';
         itemQty.value = 1;
@@ -1469,7 +1486,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     notifBody.innerHTML = '<div class="notif-empty text-muted">You have no new notifications.</div>';
                     notifBadge.style.display = 'none';
                 }
-                
+
                 lucide.createIcons();
             })
             .catch(err => {
@@ -1481,7 +1498,7 @@ document.addEventListener('DOMContentLoaded', () => {
     bellBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         notifDropdown.classList.toggle('active');
-        if(notifDropdown.classList.contains('active')) {
+        if (notifDropdown.classList.contains('active')) {
             fetchNotifications(); // Refresh on open
         }
     });
@@ -1512,23 +1529,23 @@ document.addEventListener('DOMContentLoaded', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         })
-        .then(res => res.json())
-        .then(data => {
-            alert('Settings updated successfully!');
-            fetchSettings(); // refresh global state
-            renderInvoiceItems(); // update invoice UI just in case
-        })
-        .catch(err => alert('Failed to update settings.'));
+            .then(res => res.json())
+            .then(data => {
+                alert('Settings updated successfully!');
+                fetchSettings(); // refresh global state
+                renderInvoiceItems(); // update invoice UI just in case
+            })
+            .catch(err => alert('Failed to update settings.'));
     }
 
     // Settings Save Handlers
     const btnSaveCompany = document.getElementById('btn-save-company');
     const btnSaveFinance = document.getElementById('btn-save-finance');
-    
+
     if (btnSaveFinance) btnSaveFinance.addEventListener('click', saveSettings);
 
     // Edit Profile logic restoration
-    window.initEditProfileModal = function() {
+    window.initEditProfileModal = function () {
         const adminDropdown = document.getElementById('admin-dropdown');
         const modal = document.getElementById('modal-edit-profile');
         const form = document.getElementById('form-edit-profile');
@@ -1542,7 +1559,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Close dropdown and show modal
         if (adminDropdown) adminDropdown.classList.remove('active');
         if (modal) modal.classList.add('active');
-        
+
         // Reset form and UI
         if (form) form.reset();
         if (errorMsg) errorMsg.style.display = 'none';
@@ -1574,13 +1591,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Handle Image Preview
     if (profDpInput && profDpPreview) {
-        profDpInput.addEventListener('change', function() {
+        profDpInput.addEventListener('change', function () {
             const file = this.files[0];
             if (file) {
                 const reader = new FileReader();
-                reader.onload = function(e) {
+                reader.onload = function (e) {
                     profDpPreview.style.backgroundImage = `url(${e.target.result})`;
-                    profDpPreview.textContent = ''; 
+                    profDpPreview.textContent = '';
                 }
                 reader.readAsDataURL(file);
             }
@@ -1590,7 +1607,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (formEditProfile) {
         formEditProfile.addEventListener('submit', (e) => {
             e.preventDefault();
-            
+
             profError.style.display = 'none';
             profSuccess.style.display = 'none';
 
@@ -1615,61 +1632,61 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const formData = new FormData();
             formData.append('name', profName.value);
-            
+
             if (profPwdCurrent.value) {
                 formData.append('currentPassword', profPwdCurrent.value);
                 if (profPwdNew.value) {
                     formData.append('newPassword', profPwdNew.value);
                 }
             }
-            
+
             if (profDpInput.files[0]) {
                 formData.append('display_picture', profDpInput.files[0]);
             }
 
             apiFetch('/api/profile', {
                 method: 'PUT',
-                body: formData 
+                body: formData
             })
-            .then(async res => {
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'Failed to update profile');
-                
-                profSuccess.textContent = 'Profile updated successfully!';
-                profSuccess.style.display = 'block';
-                
-                // Update localStorage
-                if (data.name) localStorage.setItem('name', data.name);
-                if (data.display_picture) localStorage.setItem('display_picture', data.display_picture);
+                .then(async res => {
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'Failed to update profile');
 
-                // Update UI Header & Dropdown
-                const displayName = data.name || localStorage.getItem('username');
-                const userNameEl = document.querySelector('.user-info .user-name');
-                if (userNameEl) userNameEl.textContent = displayName;
-                
-                const adminDropdownNameEl = document.querySelector('#admin-dropdown p:first-of-type');
-                if (adminDropdownNameEl) adminDropdownNameEl.textContent = displayName;
-                
-                const adminBtn = document.getElementById('admin-profile-btn');
-                if (data.display_picture) {
-                    if (adminBtn) {
-                        adminBtn.style.backgroundImage = `url(${data.display_picture})`;
-                        adminBtn.style.backgroundSize = 'cover';
-                        adminBtn.style.backgroundPosition = 'center';
-                        adminBtn.textContent = '';
+                    profSuccess.textContent = 'Profile updated successfully!';
+                    profSuccess.style.display = 'block';
+
+                    // Update localStorage
+                    if (data.name) localStorage.setItem('name', data.name);
+                    if (data.display_picture) localStorage.setItem('display_picture', data.display_picture);
+
+                    // Update UI Header & Dropdown
+                    const displayName = data.name || localStorage.getItem('username');
+                    const userNameEl = document.querySelector('.user-info .user-name');
+                    if (userNameEl) userNameEl.textContent = displayName;
+
+                    const adminDropdownNameEl = document.querySelector('#admin-dropdown p:first-of-type');
+                    if (adminDropdownNameEl) adminDropdownNameEl.textContent = displayName;
+
+                    const adminBtn = document.getElementById('admin-profile-btn');
+                    if (data.display_picture) {
+                        if (adminBtn) {
+                            adminBtn.style.backgroundImage = `url(${data.display_picture})`;
+                            adminBtn.style.backgroundSize = 'cover';
+                            adminBtn.style.backgroundPosition = 'center';
+                            adminBtn.textContent = '';
+                        }
+                    } else if (data.name) {
+                        if (adminBtn && !adminBtn.style.backgroundImage) adminBtn.textContent = data.name.charAt(0).toUpperCase();
                     }
-                } else if (data.name) {
-                    if (adminBtn && !adminBtn.style.backgroundImage) adminBtn.textContent = data.name.charAt(0).toUpperCase();
-                }
-                
-                setTimeout(() => {
-                    document.getElementById('modal-edit-profile').classList.remove('active');
-                }, 1000);
-            })
-            .catch(err => {
-                profError.textContent = err.message;
-                profError.style.display = 'block';
-            });
+
+                    setTimeout(() => {
+                        document.getElementById('modal-edit-profile').classList.remove('active');
+                    }, 1000);
+                })
+                .catch(err => {
+                    profError.textContent = err.message;
+                    profError.style.display = 'block';
+                });
         });
     }
 

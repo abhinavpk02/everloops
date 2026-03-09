@@ -13,7 +13,7 @@ const PROJECT_ROOT = path.resolve(__dirname);
 const app = express();
 const PORT = process.env.PORT || 3002;
 
-const isServerless = process.env.NETLIFY || process.env.LAMBDA_TASK_ROOT || process.env.NODE_ENV === 'production';
+const isServerless = process.env.VERCEL || process.env.NETLIFY || process.env.LAMBDA_TASK_ROOT || process.env.NODE_ENV === 'production';
 const UPLOADS_DIR = isServerless ? '/tmp/uploads' : path.join(__dirname, 'uploads');
 const INVOICES_DIR = isServerless ? '/tmp/generated_invoices' : path.join(__dirname, 'generated_invoices');
 
@@ -530,20 +530,86 @@ app.get('/api/notifications', (req, res) => {
     });
 });
 
+// ---- REPORTS & ANALYTICS ----
+app.get('/api/reports', (req, res) => {
+    const period = req.query.period || 'monthly';
+    let salesQuery = "";
+    let dateFormat = "";
+
+    // SQLite/LibSQL date grouping
+    if (period === 'daily') {
+        dateFormat = "%Y-%m-%d";
+        salesQuery = `SELECT strftime('${dateFormat}', created_at) as label, SUM(total_amount) as revenue 
+                      FROM invoices WHERE created_at >= date('now', '-7 days')
+                      GROUP BY label ORDER BY label ASC`;
+    } else if (period === 'weekly') {
+        dateFormat = "%Y-%W";
+        salesQuery = `SELECT strftime('${dateFormat}', created_at) as label, SUM(total_amount) as revenue 
+                      FROM invoices WHERE created_at >= date('now', '-8 weeks')
+                      GROUP BY label ORDER BY label ASC`;
+    } else if (period === 'yearly') {
+        dateFormat = "%Y";
+        salesQuery = `SELECT strftime('${dateFormat}', created_at) as label, SUM(total_amount) as revenue 
+                      FROM invoices GROUP BY label ORDER BY label ASC`;
+    } else {
+        // default monthly
+        dateFormat = "%Y-%m";
+        salesQuery = `SELECT strftime('${dateFormat}', created_at) as label, SUM(total_amount) as revenue 
+                      FROM invoices WHERE created_at >= date('now', '-12 months')
+                      GROUP BY label ORDER BY label ASC`;
+    }
+
+    const productsQuery = `
+        SELECT inventory.name, SUM(invoice_items.quantity) as sold_count 
+        FROM invoice_items 
+        JOIN inventory ON invoice_items.product_id = inventory.id 
+        GROUP BY inventory.id 
+        ORDER BY sold_count DESC LIMIT 10
+    `;
+
+    db.all(salesQuery, [], (err, salesData) => {
+        if (err) return res.status(500).json({ error: 'Sales report failed: ' + err.message });
+
+        db.all(productsQuery, [], (err, productsData) => {
+            if (err) return res.status(500).json({ error: 'Products report failed: ' + err.message });
+
+            res.json({
+                sales: salesData || [],
+                products: productsData || []
+            });
+        });
+    });
+});
+
 // Fallback to serve index.html for any other route
+app.get('/styles.css', (req, res) => {
+    res.sendFile(path.join(__dirname, 'styles.css'));
+});
+
+app.get('/app.js', (req, res) => {
+    res.sendFile(path.join(__dirname, 'app.js'));
+});
+
+// --- PAGE ROUTING ---
+// 1. Specific route for the Login Page
+app.get('/login.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'login.html'));
+});
+
+// 2. Specific route for the Dashboard
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// 3. Global Fallback (Catch-all)
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Start the server (only if not running in production serverless environments like Netlify)
-if (process.env.NODE_ENV !== 'production' && !process.env.NETLIFY && !process.env.LAMBDA_TASK_ROOT) {
-    app.listen(PORT, () => {
-        console.log(`Ever Loops Server running at http://localhost:${PORT}`);
-    });
-}
-
-const serverless = require('serverless-http');
-module.exports = app;
-module.exports.handler = serverless(app, {
-    basePath: '/.netlify/functions/server'
+// --- SERVER START ---
+app.listen(PORT, () => {
+    console.log(`Ever Loops Server running at http://localhost:${PORT}`);
 });
+
+module.exports = app;
+

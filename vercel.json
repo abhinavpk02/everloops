@@ -1,21 +1,9 @@
 {
     "version": 2,
-    "cleanUrls": true,
-    "routes": [
+    "rewrites": [
         {
-            "handle": "filesystem"
-        },
-        {
-            "src": "/login.html",
-            "dest": "/login.html"
-        },
-        {
-            "src": "/api/(.*)",
-            "dest": "/server.js"
-        },
-        {
-            "src": "/(.*)",
-            "dest": "/server.js"
+            "source": "/(.*)",
+            "destination": "/server.js"
         }
     ]
 }
