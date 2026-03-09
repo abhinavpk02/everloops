@@ -679,7 +679,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     let bgStyle = '';
                     let patternClass = item.image_pattern;
-                    if (item.image_pattern && item.image_pattern.startsWith('/uploads')) {
+                    if (item.image_pattern && (item.image_pattern.startsWith('/uploads') || item.image_pattern.startsWith('/collections'))) {
                         patternClass = '';
                         bgStyle = `style="background-image: url('${item.image_pattern}'); background-size: cover; background-position: center;"`;
                     }
