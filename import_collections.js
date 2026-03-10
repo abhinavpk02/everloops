@@ -8,7 +8,7 @@ const client = createClient({
     authToken: process.env.TURSO_AUTH_TOKEN
 });
 
-const COLLECTIONS_DIR = path.join(__dirname, 'collections');
+const COLLECTIONS_DIR = path.join(__dirname, 'public', 'collections');
 const MAPPING_FILE = path.join(COLLECTIONS_DIR, 'rebrand_mapping.csv');
 
 async function importCollections() {
@@ -59,16 +59,17 @@ async function importCollections() {
                     const variantSuffix = (i + 1).toString().padStart(3, '0');
                     const sku = `EVR-${rebrandedName.toUpperCase().replace(/\s+/g, '-')}-${variantSuffix}`;
 
+                    const cost = 0;
                     const price = 0;
                     const stock = 10;
                     const dimensions = '50x50 cm';
                     const material = 'Premium';
                     const type = 'Carpet Tile';
-                    const description = `Collection: ${rebrandedName} (Original: ${item.original})`;
+                    const description = '';
 
                     await client.execute({
-                        sql: "INSERT INTO inventory (name, sku, type, material, dimensions, stock, price, description, image_pattern) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        args: [rebrandedName, sku, type, material, dimensions, stock, price, description, imagePath]
+                        sql: "INSERT INTO inventory (name, sku, type, material, dimensions, stock, cost, price, description, image_pattern) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        args: [rebrandedName, sku, type, material, dimensions, stock, cost, price, description, imagePath]
                     });
 
                     count++;

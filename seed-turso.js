@@ -35,6 +35,7 @@ async function seed() {
         material TEXT,
         dimensions TEXT,
         stock INTEGER DEFAULT 0,
+        cost REAL DEFAULT 0,
         price REAL NOT NULL,
         description TEXT,
         image_pattern TEXT
@@ -60,6 +61,16 @@ async function seed() {
         price REAL,
         FOREIGN KEY(invoice_id) REFERENCES invoices(id),
         FOREIGN KEY(product_id) REFERENCES inventory(id)
+    )`);
+
+    await client.execute(`CREATE TABLE IF NOT EXISTS activity_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT NOT NULL,
+        product_id INTEGER,
+        product_name TEXT,
+        product_sku TEXT,
+        details TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
     await client.execute(`CREATE TABLE IF NOT EXISTS settings (

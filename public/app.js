@@ -100,6 +100,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- Dynamic Clock & Date ---
+    function updateClock() {
+        const now = new Date();
+        const headerDate = document.getElementById('current-date');
+        const dashDate = document.getElementById('current-date-dash');
+
+        const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        const timeOptions = { hour: '2-digit', minute: '2-digit', hour12: true };
+
+        const dateStr = now.toLocaleDateString('en-GB', dateOptions);
+        const timeStr = now.toLocaleTimeString('en-GB', timeOptions);
+
+        if (headerDate) {
+            headerDate.textContent = dateStr;
+        }
+
+        if (dashDate) {
+            dashDate.textContent = `${dateStr} • ${timeStr}`;
+        }
+    }
+
+    // Update every minute
+    updateClock();
+    setInterval(updateClock, 60000);
+
     // Initial UI update from localStorage
     updateHeaderUI({});
 
@@ -137,7 +162,10 @@ document.addEventListener('DOMContentLoaded', () => {
         editInventory: document.getElementById('modal-edit-inventory'),
         history: document.getElementById('modal-customer-history'),
         changePassword: document.getElementById('modal-change-password'),
-        editProfile: document.getElementById('modal-edit-profile')
+        editProfile: document.getElementById('modal-edit-profile'),
+        editProfile: document.getElementById('modal-edit-profile'),
+        activity: document.getElementById('modal-recent-activity'),
+        confirmSettings: document.getElementById('modal-confirm-settings')
     };
 
     // Global Close Modal Logic
@@ -328,9 +356,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function fetchDashboard() {
-        // Set today's date
-        const dateDash = document.getElementById('current-date-dash');
-        if (dateDash) dateDash.textContent = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        // Set today's date via clock function
+        updateClock();
 
         apiFetch('/api/stats')
             .then(res => res.json())
@@ -409,6 +436,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const invSearch = document.getElementById('inv-search');
+    if (invSearch) {
+        invSearch.addEventListener('input', (e) => {
+            fetchInventory(e.target.value);
+        });
+    }
+
+    const btnViewActivity = document.getElementById('btn-view-activity');
+    if (btnViewActivity) {
+        btnViewActivity.addEventListener('click', () => {
+            showActivityModal();
+        });
+    }
+
     // Reports Period Listener
     const reportPeriodSelect = document.getElementById('report-period');
     if (reportPeriodSelect) {
@@ -419,6 +460,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let salesChartInstance = null;
     let productsChartInstance = null;
+    let materialChartInstance = null;
+    let typeChartInstance = null;
+    let correlationChartInstance = null;
+    let customersChartInstance = null;
 
     function fetchReports(period = 'monthly') {
         const salesChartEl = document.getElementById('salesChart');
@@ -429,22 +474,38 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(data => {
                 const salesCtx = salesChartEl.getContext('2d');
                 const productsCtx = document.getElementById('productsChart').getContext('2d');
+                const materialCtx = document.getElementById('inventoryMaterialChart').getContext('2d');
+                const typeCtx = document.getElementById('stockByTypeChart').getContext('2d');
+                const correlationCtx = document.getElementById('priceCostCorrelationChart').getContext('2d');
+                const customersCtx = document.getElementById('topCustomersChart').getContext('2d');
 
-                if (salesChartInstance) salesChartInstance.destroy();
-                if (productsChartInstance) productsChartInstance.destroy();
+                // Destroy existing instances
+                [salesChartInstance, productsChartInstance, materialChartInstance, typeChartInstance, correlationChartInstance, customersChartInstance].forEach(chart => {
+                    if (chart) chart.destroy();
+                });
 
-                // Gradient for Sales Chart
+                // Update Summary Cards
+                if (data.summary) {
+                    const totalRevenueEl = document.getElementById('report-total-revenue');
+                    const avgOrderEl = document.getElementById('report-avg-order');
+                    const totalInvoicesEl = document.getElementById('report-total-invoices');
+
+                    if (totalRevenueEl) totalRevenueEl.innerText = 'QAR ' + (data.summary.total_revenue || 0).toLocaleString();
+                    if (avgOrderEl) avgOrderEl.innerText = 'QAR ' + (data.summary.avg_value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
+                    if (totalInvoicesEl) totalInvoicesEl.innerText = (data.summary.total_invoices || 0).toLocaleString();
+                }
+
+                const periodCapitalized = period.charAt(0).toUpperCase() + period.slice(1);
+
+                // --- 1. Line Chart: Sales Trend ---
                 const salesGradient = salesCtx.createLinearGradient(0, 0, 0, 400);
                 salesGradient.addColorStop(0, 'rgba(212, 175, 55, 0.4)');
                 salesGradient.addColorStop(1, 'rgba(212, 175, 55, 0.0)');
-
-                const periodCapitalized = period.charAt(0).toUpperCase() + period.slice(1);
 
                 salesChartInstance = new Chart(salesCtx, {
                     type: 'line',
                     data: {
                         labels: data.sales.map(s => {
-                            // Format labels like "2023-10" to something nicer if possible
                             if (period === 'monthly') {
                                 const [year, month] = s.label.split('-');
                                 const date = new Date(year, month - 1);
@@ -469,39 +530,38 @@ document.addEventListener('DOMContentLoaded', () => {
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                                backgroundColor: 'rgba(30, 41, 59, 0.9)',
-                                titleFont: { size: 14, weight: 'bold' },
-                                padding: 12,
-                                cornerRadius: 8,
-                                displayColors: false,
-                                callbacks: {
-                                    label: function (context) {
-                                        return 'QAR ' + context.parsed.y.toLocaleString();
-                                    }
-                                }
-                            }
-                        },
+                        plugins: { legend: { display: false } },
                         scales: {
-                            y: {
-                                beginAtZero: true,
-                                grid: { color: 'rgba(148, 163, 184, 0.1)' },
-                                ticks: {
-                                    callback: value => 'QAR ' + value.toLocaleString(),
-                                    color: '#94a3b8'
-                                }
-                            },
-                            x: {
-                                grid: { display: false },
-                                ticks: { color: '#94a3b8' }
-                            }
+                            y: { beginAtZero: true, grid: { color: 'rgba(148, 163, 184, 0.1)' }, ticks: { color: '#94a3b8', callback: v => 'QAR ' + v.toLocaleString() } },
+                            x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
                         }
                     }
                 });
 
-                // Gradient for Products Chart
+                // --- 1.5 Bar Chart: Top Customers ---
+                customersChartInstance = new Chart(customersCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: (data.topCustomers || []).map(c => c.label),
+                        datasets: [{
+                            label: 'Total Spend (QAR)',
+                            data: (data.topCustomers || []).map(c => c.value),
+                            backgroundColor: '#d4af37',
+                            borderRadius: 6
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { beginAtZero: true, grid: { color: 'rgba(148, 163, 184, 0.1)' }, ticks: { color: '#94a3b8' } },
+                            x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                        }
+                    }
+                });
+
+                // --- 2. Bar Chart: Top Products ---
                 const productGradient = productsCtx.createLinearGradient(0, 0, 400, 0);
                 productGradient.addColorStop(0, '#6366f1');
                 productGradient.addColorStop(1, '#a855f7');
@@ -522,23 +582,89 @@ document.addEventListener('DOMContentLoaded', () => {
                         indexAxis: 'y',
                         responsive: true,
                         maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { beginAtZero: true, grid: { color: 'rgba(148, 163, 184, 0.1)' } },
+                            y: { grid: { display: false } }
+                        }
+                    }
+                });
+
+                // --- 3. Pie Chart: Material Distribution ---
+                const premiumColors = ['#d4af37', '#6366f1', '#10b981', '#f59e0b', '#3b82f6', '#ec4899', '#8b5cf6'];
+                materialChartInstance = new Chart(materialCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: data.materials.map(m => m.label),
+                        datasets: [{
+                            data: data.materials.map(m => m.count),
+                            backgroundColor: premiumColors,
+                            borderWidth: 0,
+                            hoverOffset: 20
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
                         plugins: {
-                            legend: { display: false },
+                            legend: { position: 'right', labels: { color: '#94a3b8', usePointStyle: true, padding: 20 } }
+                        }
+                    }
+                });
+
+                // --- 4. Bar Chart: Stock by Type ---
+                typeChartInstance = new Chart(typeCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.stockByType.map(t => t.label),
+                        datasets: [{
+                            label: 'Total Stock',
+                            data: data.stockByType.map(t => t.total_stock),
+                            backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                            borderColor: '#3b82f6',
+                            borderWidth: 1,
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { beginAtZero: true, grid: { color: 'rgba(148, 163, 184, 0.1)' } },
+                            x: { grid: { display: false } }
+                        }
+                    }
+                });
+
+                // --- 5. Scatter Plot: Price vs Cost ---
+                correlationChartInstance = new Chart(correlationCtx, {
+                    type: 'scatter',
+                    data: {
+                        datasets: [{
+                            label: 'Products',
+                            data: data.correlation.map(c => ({ x: c.x, y: c.y })),
+                            backgroundColor: '#d4af37',
+                            pointRadius: 6,
+                            pointHoverRadius: 10
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
                             tooltip: {
-                                backgroundColor: 'rgba(30, 41, 59, 0.9)',
-                                padding: 12,
-                                cornerRadius: 8
+                                callbacks: {
+                                    label: function (ctx) {
+                                        const item = data.correlation[ctx.dataIndex];
+                                        return `${item.x_label}: Cost QAR ${item.x}, Price QAR ${item.y}`;
+                                    }
+                                }
                             }
                         },
                         scales: {
-                            x: {
-                                grid: { color: 'rgba(148, 163, 184, 0.1)' },
-                                ticks: { color: '#94a3b8' }
-                            },
-                            y: {
-                                grid: { display: false },
-                                ticks: { color: '#94a3b8' }
-                            }
+                            x: { title: { display: true, text: 'Cost (QAR)', color: '#94a3b8' }, grid: { color: 'rgba(148, 163, 184, 0.1)' } },
+                            y: { title: { display: true, text: 'Price (QAR)', color: '#94a3b8' }, grid: { color: 'rgba(148, 163, 184, 0.1)' } }
                         }
                     }
                 });
@@ -551,7 +677,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:1.5rem; color:var(--text-muted);">No sales data for this period yet</td></tr>';
                     } else {
                         data.products.forEach(p => {
-                            // Use units sold, and if we had price we'd use it, for now units is the key stat
                             tableBody.innerHTML += `
                                 <tr>
                                     <td style="font-weight:600;">${p.name}</td>
@@ -562,7 +687,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             `;
                         });
                     }
-                    lucide.createIcons(); // Refresh icons for the table
+                    lucide.createIcons();
                 }
             })
             .catch(console.error);
@@ -653,13 +778,18 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     };
 
-    function fetchInventory() {
+    function fetchInventory(searchTerm = '') {
         const grid = document.querySelector('.inventory-grid');
         if (!grid) return;
 
         grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:2rem;">Loading inventory...</div>';
 
-        apiFetch('/api/inventory')
+        let url = '/api/inventory';
+        if (searchTerm) {
+            url += `?search=${encodeURIComponent(searchTerm)}`;
+        }
+
+        apiFetch(url)
             .then(res => res.json())
             .then(data => {
                 grid.innerHTML = '';
@@ -706,12 +836,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </p>
                             </div>
 
-                            <p style="margin:0 0 1rem 0; font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.1rem;">
-                                ${item.description || 'No description available.'}
-                            </p>
-
                             <div class="inv-price-footer" style="display:flex; justify-content: space-between; align-items: center; margin-top: auto; border-top: 1px solid var(--border-color); padding-top: 1rem;">
-                                <h3 style="font-size: 1.35rem; color: var(--primary); margin:0;">${item.price > 0 ? `QAR ${item.price.toLocaleString()}` : 'Custom'}</h3>
+                                <div>
+                                    <p style="margin:0; font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Cost / Price</p>
+                                    <h3 style="font-size: 1.1rem; color: var(--primary); margin:0;">
+                                        QAR ${item.cost || 0} / ${item.price > 0 ? `QAR ${item.price.toLocaleString()}` : 'Custom'}
+                                    </h3>
+                                </div>
                                 <div style="display:flex; gap: 0.5rem;">
                                     <button type="button" class="btn-icon" title="Edit" onclick='editInventoryItem(${safeItemStr})'>
                                         <i data-lucide="edit"></i>
@@ -733,6 +864,164 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
+    let activityData = [];
+    let currentActivityTab = 'All';
+
+    function showActivityModal() {
+        const modal = document.getElementById('modal-recent-activity');
+        if (!modal) return;
+
+        modal.classList.add('active');
+        fetchActivityLog();
+
+        // Setup tab listeners
+        const tabs = document.querySelectorAll('.activity-tab-btn');
+        tabs.forEach(tab => {
+            tab.onclick = () => {
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentActivityTab = tab.getAttribute('data-type');
+                renderActivityItems();
+            };
+        });
+    }
+
+    function fetchActivityLog() {
+        const list = document.getElementById('activity-list');
+        if (!list) return;
+
+        list.innerHTML = '<div style="text-align:center; padding:2rem;">Loading activity...</div>';
+
+        apiFetch('/api/activity-log')
+            .then(res => res.json())
+            .then(data => {
+                activityData = data;
+                renderActivityItems();
+            })
+            .catch(err => {
+                console.error('Error fetching activity log:', err);
+                list.innerHTML = '<div style="text-align:center; padding:2rem; color:var(--danger);">Error loading activity.</div>';
+            });
+    }
+
+    function renderActivityItems() {
+        const list = document.getElementById('activity-list');
+        if (!list) return;
+
+        list.innerHTML = '';
+        const filtered = currentActivityTab === 'All'
+            ? activityData
+            : activityData.filter(log => log.type === currentActivityTab);
+
+        if (filtered.length === 0) {
+            list.innerHTML = `<div style="text-align:center; padding:2rem;">No ${currentActivityTab === 'All' ? '' : currentActivityTab.toLowerCase()} activity found.</div>`;
+            return;
+        }
+
+        filtered.forEach(log => {
+            const item = document.createElement('div');
+            item.className = 'activity-item';
+            item.style.padding = '1rem';
+            item.style.borderBottom = '1px solid var(--border-color)';
+            item.style.display = 'flex';
+            item.style.justifyContent = 'space-between';
+            item.style.alignItems = 'center';
+            item.style.transition = 'background 0.2s';
+
+            if (log.type !== 'Deleted' && log.product_id) {
+                // Hover effect removed from row, moved logic to buttons
+                item.addEventListener('mouseenter', () => item.style.background = 'var(--bg-panel-hover)');
+                item.addEventListener('mouseleave', () => item.style.background = 'transparent');
+            }
+
+            const typeColor = log.type === 'Added' ? 'var(--success)' : (log.type === 'Deleted' ? 'var(--danger)' : 'var(--primary)');
+            const date = new Date(log.timestamp).toLocaleString();
+
+            item.innerHTML = `
+                <div style="flex:1;">
+                    <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.25rem;">
+                        <span style="font-weight:700; color:${typeColor}; font-size:0.8rem; text-transform:uppercase;">${log.type}</span>
+                        <h4 style="margin:0; font-size:1rem;">${log.product_name}</h4>
+                    </div>
+                    <p style="margin:0; font-size:0.85rem; color:var(--text-muted);">SKU: ${log.product_sku}</p>
+                </div>
+                <div style="text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:0.5rem;">
+                    <p style="margin:0; font-size:0.85rem; font-weight:500;">${date}</p>
+                    <div style="display:flex; align-items:center; gap:0.75rem;">
+                        ${log.type !== 'Deleted' && log.product_id ? `
+                            <button class="icon-btn edit-activity-item" title="Edit Product" style="color:var(--primary); padding:4px;">
+                                <i data-lucide="edit-3" style="width:18px; height:18px;"></i>
+                            </button>
+                            <button class="icon-btn delete-activity-item" title="Delete Product" style="color:var(--danger); padding:4px;">
+                                <i data-lucide="trash-2" style="width:18px; height:18px;"></i>
+                            </button>
+                        ` : ''}
+                        ${log.type === 'Deleted' ? `
+                            <button class="icon-btn restore-activity-item" title="Restore Product" style="color:var(--success); padding:4px;">
+                                <i data-lucide="refresh-cw" style="width:18px; height:18px;"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+
+            const editBtn = item.querySelector('.edit-activity-item');
+            if (editBtn) {
+                editBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    console.log('Fetching product details for ID:', log.product_id);
+                    apiFetch(`/api/inventory/${log.product_id}`)
+                        .then(res => {
+                            if (!res.ok) throw new Error('Product details could not be loaded.');
+                            return res.json();
+                        })
+                        .then(product => {
+                            if (modals.activity) modals.activity.classList.remove('active');
+                            editInventoryItem(product);
+                        })
+                        .catch(err => alert(err.message));
+                };
+            }
+
+            const delBtn = item.querySelector('.delete-activity-item');
+            if (delBtn) {
+                delBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if (confirm(`Are you sure you want to delete "${log.product_name}"?`)) {
+                        apiFetch(`/api/inventory/${log.product_id}`, { method: 'DELETE' })
+                            .then(res => {
+                                if (!res.ok) throw new Error('Failed to delete item');
+                                fetchInventory(); // Refresh main grid
+                                fetchActivityLog(); // Refresh this list
+                            })
+                            .catch(err => alert(err.message));
+                    }
+                };
+            }
+
+            const resBtn = item.querySelector('.restore-activity-item');
+            if (resBtn) {
+                resBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if (confirm(`Restore "${log.product_name}" to inventory?`)) {
+                        apiFetch(`/api/activity-log/${log.id}/restore`, { method: 'POST' })
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.error) throw new Error(data.error);
+                                alert(`Restored: ${data.name}`);
+                                fetchInventory();
+                                fetchActivityLog();
+                            })
+                            .catch(err => alert(err.message));
+                    }
+                };
+            }
+
+            list.appendChild(item);
+        });
+        if (window.lucide) window.lucide.createIcons();
+    }
+
     // Expose delete to window so onClick works
     window.deleteInventoryItem = function (id) {
         if (!confirm('Are you sure you want to delete this carpet from inventory?')) return;
@@ -751,9 +1040,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('edit-inv-sku').value = item.sku;
         document.getElementById('edit-inv-type').value = item.type || '';
         document.getElementById('edit-inv-material').value = item.material || '';
-        document.getElementById('edit-inv-desc').value = item.description || '';
         document.getElementById('edit-inv-dim').value = item.dimensions || '';
         document.getElementById('edit-inv-price').value = item.price;
+        document.getElementById('edit-inv-cost').value = item.cost || 0;
         document.getElementById('edit-inv-stock').value = item.stock;
 
         // If it's a built-in pattern, pre-select it
@@ -788,99 +1077,109 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Form Submissions
+    // Updated Generate Invoice Handler: Now shows preview first
     document.getElementById('btn-generate-invoice').addEventListener('click', (e) => {
         const customerId = document.getElementById('inv-customer-id').value;
         if (!customerId || invoiceItems.length === 0) {
             alert('Please select a customer and add at least one item.');
             return;
         }
-
-        const btn = e.currentTarget;
-        const origText = btn.innerHTML;
-        btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Generating...';
-        btn.disabled = true;
-
-        const totalAmount = parseFloat(btn.dataset.total || 0);
-        const subtotal = parseFloat(btn.dataset.subtotal || 0);
-        const tax = parseFloat(btn.dataset.tax || 0);
-        const discount = parseFloat(document.getElementById('inv-discount').value || 0);
-        const paymentMethod = document.getElementById('inv-payment-method').value;
-        const status = document.getElementById('inv-status').value;
-
-        const invoiceData = {
-            customer_id: customerId,
-            total_amount: totalAmount,
-            discount: discount,
-            payment_method: paymentMethod,
-            status: status,
-            items: invoiceItems.map(item => ({
-                id: item.id,
-                qty: item.qty,
-                price: item.price
-            }))
-        };
-
-        apiFetch('/api/invoices', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(invoiceData)
-        })
-            .then(res => res.json())
-            .then(data => {
-                const customerName = document.getElementById('inv-customer-search').value;
-
-                const pdfData = {
-                    customerName: customerName,
-                    invoiceNumber: data.invoice_number,
-                    items: invoiceItems,
-                    subtotal: subtotal,
-                    tax: tax,
-                    grandTotal: totalAmount,
-                    discount: discount,
-                    paymentMethod: paymentMethod,
-                    status: status
-                };
-
-                return apiFetch('/api/invoices/pdf', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(pdfData)
-                })
-                    .then(res => {
-                        if (!res.ok) throw new Error('Invoice saved but PDF generation failed.');
-                        return res.blob();
-                    })
-                    .then(blob => {
-                        const url = window.URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.style.display = 'none';
-                        a.href = url;
-                        a.download = `${data.invoice_number}.pdf`;
-                        document.body.appendChild(a);
-                        a.click();
-                        window.URL.revokeObjectURL(url);
-
-                        // Reset invoice builder
-                        invoiceItems = [];
-                        renderInvoiceItems();
-                        document.getElementById('inv-customer-search').value = '';
-                        document.getElementById('inv-customer-id').value = '';
-                        document.getElementById('inv-item-search').value = '';
-                        document.getElementById('inv-discount').value = 0;
-
-                        // Refresh stats if on dashboard
-                        if (typeof fetchDashboard === 'function') fetchDashboard();
-                    });
-            })
-            .catch(err => {
-                console.error(err);
-                alert('Error generating invoice or PDF');
-            })
-            .finally(() => {
-                btn.innerHTML = origText;
-                btn.disabled = false;
-            });
+        // Trigger preview instead of immediate save
+        const previewBtn = document.getElementById('btn-preview-invoice');
+        if (previewBtn) previewBtn.click();
     });
+
+    // Actual Save logic triggered from Preview Modal
+    const btnFinalGenerate = document.getElementById('btn-final-generate');
+    if (btnFinalGenerate) {
+        btnFinalGenerate.addEventListener('click', (e) => {
+            const customerId = document.getElementById('inv-customer-id').value;
+            if (!customerId || invoiceItems.length === 0) return;
+
+            const btn = e.currentTarget;
+            const origHTML = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Processing...';
+            btn.disabled = true;
+
+            const subtotal = invoiceItems.reduce((acc, item) => acc + (item.price * item.qty), 0);
+            const discount = parseFloat(document.getElementById('inv-discount').value || 0);
+            const taxRate = window.appSettings?.tax_rate || 5;
+            const tax = (subtotal - discount) * (taxRate / 100);
+            const totalAmount = subtotal - discount + tax;
+            const paymentMethod = document.getElementById('inv-payment-method').value;
+            const status = document.getElementById('inv-status').value;
+
+            const invoiceData = {
+                customer_id: customerId,
+                total_amount: totalAmount,
+                discount: discount,
+                payment_method: paymentMethod,
+                status: status,
+                items: invoiceItems.map(item => ({
+                    id: item.id,
+                    qty: item.qty,
+                    price: item.price
+                }))
+            };
+
+            apiFetch('/api/invoices', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(invoiceData)
+            })
+                .then(res => res.json())
+                .then(data => {
+                    const customerName = document.getElementById('inv-customer-search').value;
+                    const pdfData = {
+                        customerName: customerName,
+                        invoiceNumber: data.invoice_number,
+                        items: invoiceItems,
+                        subtotal: subtotal,
+                        tax: tax,
+                        grandTotal: totalAmount,
+                        discount: discount,
+                        paymentMethod: paymentMethod,
+                        status: status
+                    };
+
+                    apiFetch('/api/invoices/pdf', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(pdfData)
+                    })
+                        .then(res => res.blob())
+                        .then(blob => {
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `${data.invoice_number}.pdf`;
+                            document.body.appendChild(a);
+                            a.click();
+                            window.URL.revokeObjectURL(url);
+
+                            // Reset and Close
+                            document.getElementById('modal-invoice-preview').classList.remove('active');
+                            invoiceItems = [];
+                            renderInvoiceItems();
+                            document.getElementById('inv-customer-id').value = '';
+                            document.getElementById('inv-customer-search').value = '';
+                            document.getElementById('inv-discount').value = '0';
+
+                            btn.innerHTML = origHTML;
+                            btn.disabled = false;
+
+                            if (typeof fetchDashboard === 'function') fetchDashboard();
+                            alert(`Invoice ${data.invoice_number} saved successfully!`);
+                        });
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('Error saving invoice.');
+                    btn.innerHTML = origHTML;
+                    btn.disabled = false;
+                });
+        });
+    }
 
     document.getElementById('form-add-customer').addEventListener('submit', (e) => {
         e.preventDefault();
@@ -959,8 +1258,9 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('sku', document.getElementById('inv-sku').value);
         formData.append('type', document.getElementById('inv-type').value);
         formData.append('material', document.getElementById('inv-material').value);
-        formData.append('description', document.getElementById('inv-desc').value);
         formData.append('dimensions', document.getElementById('inv-dim').value);
+        formData.append('description', '');
+        formData.append('cost', document.getElementById('inv-cost').value);
         formData.append('price', document.getElementById('inv-price').value);
         formData.append('stock', document.getElementById('inv-stock').value);
         formData.append('image_pattern', document.getElementById('inv-pattern').value);
@@ -1000,8 +1300,9 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('sku', document.getElementById('edit-inv-sku').value);
         formData.append('type', document.getElementById('edit-inv-type').value);
         formData.append('material', document.getElementById('edit-inv-material').value);
-        formData.append('description', document.getElementById('edit-inv-desc').value);
         formData.append('dimensions', document.getElementById('edit-inv-dim').value);
+        formData.append('description', '');
+        formData.append('cost', document.getElementById('edit-inv-cost').value);
         formData.append('price', document.getElementById('edit-inv-price').value);
         formData.append('stock', document.getElementById('edit-inv-stock').value);
         formData.append('image_pattern', document.getElementById('edit-inv-pattern').value);
@@ -1031,8 +1332,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Invoice Builder Logic ---
     let invoiceItems = [];
 
-    // Preview button handler
-    const btnPreviewInvoice = document.getElementById('btn-preview-invoice');
+    // Updated Preview button handler with Standard Template support
     if (btnPreviewInvoice) {
         btnPreviewInvoice.addEventListener('click', () => {
             const currency = window.appSettings?.currency || 'QAR';
@@ -1044,12 +1344,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Populate company info from settings
             document.getElementById('prv-company-name').textContent = window.appSettings?.company_name || 'Ever Loops Carpets';
-            document.getElementById('prv-company-address').textContent = (window.appSettings?.address || 'Doha, Qatar').replace(/\\n/g, ', ');
+            const addr = (window.appSettings?.address || 'Doha, Qatar').replace(/\\n/g, ', ');
+            document.getElementById('prv-company-address').textContent = addr;
             document.getElementById('prv-company-phone').textContent = window.appSettings?.phone || '';
             document.getElementById('prv-date').textContent = new Date().toLocaleDateString('en-GB');
-            document.getElementById('prv-status').textContent = status;
+
+            // New standardized fields
+            const prvStatusDisplay = document.getElementById('prv-status-display');
+            if (prvStatusDisplay) {
+                prvStatusDisplay.textContent = status.toUpperCase();
+                const statusColors = { Paid: '#10b981', Pending: '#f59e0b', Overdue: '#ef4444' };
+                prvStatusDisplay.style.color = statusColors[status] || '#64748b';
+            }
+
             document.getElementById('prv-payment').textContent = paymentMethod;
             document.getElementById('prv-customer').textContent = customerName;
+
+            // Try to find customer email/phone for details
+            // For now just placeholders or leave empty
+            document.getElementById('prv-customer-details').textContent = 'Valued Customer';
 
             // Items table
             const itemsTbody = document.getElementById('prv-items');
@@ -1057,18 +1370,22 @@ document.addEventListener('DOMContentLoaded', () => {
             let subtotal = 0;
 
             if (invoiceItems.length === 0) {
-                itemsTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:1rem; color:#94a3b8; font-style:italic;">No items added yet</td></tr>';
+                itemsTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:2rem; color:#94a3b8; font-style:italic;">No items added yet</td></tr>';
             } else {
                 invoiceItems.forEach((item, idx) => {
                     const lineTotal = item.price * item.qty;
                     subtotal += lineTotal;
-                    const bg = idx % 2 === 0 ? '#fff' : '#f8fafc';
+                    // Alternating backgrounds for standard look
+                    const bg = idx % 2 === 0 ? '#fff' : '#fcfdff';
                     itemsTbody.innerHTML += `
                         <tr style="background:${bg};">
-                            <td style="padding:0.6rem 1rem; font-size:0.9rem; color:#1e293b; border-bottom:1px solid #f1f5f9;">${item.name}</td>
-                            <td style="padding:0.6rem; text-align:center; font-size:0.9rem; color:#64748b; border-bottom:1px solid #f1f5f9;">${item.qty}</td>
-                            <td style="padding:0.6rem; text-align:right; font-size:0.9rem; color:#64748b; border-bottom:1px solid #f1f5f9;">${currency} ${item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                            <td style="padding:0.6rem 1rem; text-align:right; font-size:0.9rem; font-weight:600; color:#1e293b; border-bottom:1px solid #f1f5f9;">${currency} ${lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                            <td style="padding:1rem 1.5rem; font-size:0.9rem; color:#1e293b; border-bottom:1px solid #f1f5f9;">
+                                <div style="font-weight:600;">${item.name}</div>
+                                <div style="font-size:0.75rem; color:#94a3b8; margin-top:2px;">SKU: ${item.sku || 'N/A'}</div>
+                            </td>
+                            <td style="padding:1rem; text-align:center; font-size:0.9rem; color:#475569; border-bottom:1px solid #f1f5f9; font-weight:600;">${item.qty}</td>
+                            <td style="padding:1rem; text-align:right; font-size:0.9rem; color:#475569; border-bottom:1px solid #f1f5f9;">${currency} ${item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                            <td style="padding:1rem 1.5rem; text-align:right; font-size:0.95rem; font-weight:700; color:#1e293b; border-bottom:1px solid #f1f5f9;">${currency} ${lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                         </tr>
                     `;
                 });
@@ -1081,16 +1398,20 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('prv-subtotal').textContent = `${currency} ${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
             document.getElementById('prv-discount').textContent = `- ${currency} ${discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
             document.getElementById('prv-discount-row').style.display = discount > 0 ? 'flex' : 'none';
-            document.getElementById('prv-tax-label').textContent = `Tax (${taxRate}%)`;
+            document.getElementById('prv-tax-label').textContent = `VAT (${taxRate}%)`;
             document.getElementById('prv-tax').textContent = `${currency} ${tax.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
             document.getElementById('prv-total').textContent = `${currency} ${grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
-            // Status color
-            const statusColors = { Paid: '#10b981', Pending: '#f59e0b', Overdue: '#ef4444' };
-            document.getElementById('prv-status').style.color = statusColors[status] || '#64748b';
-
             document.getElementById('modal-invoice-preview').classList.add('active');
             lucide.createIcons();
+        });
+    }
+
+    // System Print Pop-up Handler
+    const btnPrintPreview = document.getElementById('btn-print-invoice-preview');
+    if (btnPrintPreview) {
+        btnPrintPreview.addEventListener('click', () => {
+            window.print();
         });
     }
 
@@ -1533,27 +1854,64 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Settings Save Handlers
     function saveSettings() {
-        const payload = {
-            company_name: document.getElementById('set-company').value,
-            address: document.getElementById('set-address').value,
-            phone: document.getElementById('set-phone').value,
-            currency: document.getElementById('set-currency').value,
-            tax_rate: parseFloat(document.getElementById('set-tax').value) || 0,
-            invoice_prefix: document.getElementById('set-prefix').value
-        };
+        // Just open the confirmation modal
+        const modal = document.getElementById('modal-confirm-settings');
+        const passInput = document.getElementById('confirm-settings-password');
+        if (modal) {
+            modal.classList.add('active');
+            if (passInput) passInput.value = '';
+        }
+    }
 
-        apiFetch('/api/settings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        })
-            .then(res => res.json())
-            .then(data => {
-                alert('Settings updated successfully!');
-                fetchSettings(); // refresh global state
-                renderInvoiceItems(); // update invoice UI just in case
+    const btnFinalSaveSettings = document.getElementById('btn-final-save-settings');
+    if (btnFinalSaveSettings) {
+        btnFinalSaveSettings.addEventListener('click', () => {
+            const password = document.getElementById('confirm-settings-password').value;
+            if (!password) {
+                alert('Please enter your admin password.');
+                return;
+            }
+
+            const payload = {
+                admin_password: password,
+                company_name: document.getElementById('set-company').value,
+                address: document.getElementById('set-address').value,
+                phone: document.getElementById('set-phone').value,
+                currency: document.getElementById('set-currency').value,
+                tax_rate: parseFloat(document.getElementById('set-tax').value) || 0,
+                invoice_prefix: document.getElementById('set-prefix').value
+            };
+
+            const btn = btnFinalSaveSettings;
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="lucide-loader"></i> Processing...';
+
+            apiFetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
             })
-            .catch(err => alert('Failed to update settings.'));
+                .then(res => res.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+
+                    if (data.error) {
+                        alert(data.error);
+                    } else {
+                        alert('Settings updated successfully!');
+                        document.getElementById('modal-confirm-settings').classList.remove('active');
+                        fetchSettings();
+                        renderInvoiceItems();
+                    }
+                })
+                .catch(err => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                    alert('Failed to update settings: ' + err.message);
+                });
+        });
     }
 
     // Settings Save Handlers

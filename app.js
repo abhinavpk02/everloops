@@ -706,12 +706,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </p>
                             </div>
 
-                            <p style="margin:0 0 1rem 0; font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.1rem;">
-                                ${item.description || 'No description available.'}
-                            </p>
 
                             <div class="inv-price-footer" style="display:flex; justify-content: space-between; align-items: center; margin-top: auto; border-top: 1px solid var(--border-color); padding-top: 1rem;">
-                                <h3 style="font-size: 1.35rem; color: var(--primary); margin:0;">${item.price > 0 ? `QAR ${item.price.toLocaleString()}` : 'Custom'}</h3>
+                                <div>
+                                    <p style="margin:0; font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Cost / Price</p>
+                                    <h3 style="font-size: 1.1rem; color: var(--primary); margin:0;">
+                                        QAR ${item.cost || 0} / ${item.price > 0 ? `QAR ${item.price.toLocaleString()}` : 'Custom'}
+                                    </h3>
+                                </div>
                                 <div style="display:flex; gap: 0.5rem;">
                                     <button type="button" class="btn-icon" title="Edit" onclick='editInventoryItem(${safeItemStr})'>
                                         <i data-lucide="edit"></i>
@@ -751,9 +753,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('edit-inv-sku').value = item.sku;
         document.getElementById('edit-inv-type').value = item.type || '';
         document.getElementById('edit-inv-material').value = item.material || '';
-        document.getElementById('edit-inv-desc').value = item.description || '';
         document.getElementById('edit-inv-dim').value = item.dimensions || '';
         document.getElementById('edit-inv-price').value = item.price;
+        document.getElementById('edit-inv-cost').value = item.cost || 0;
         document.getElementById('edit-inv-stock').value = item.stock;
 
         // If it's a built-in pattern, pre-select it
@@ -961,6 +963,7 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('material', document.getElementById('inv-material').value);
         formData.append('description', document.getElementById('inv-desc').value);
         formData.append('dimensions', document.getElementById('inv-dim').value);
+        formData.append('cost', document.getElementById('inv-cost').value);
         formData.append('price', document.getElementById('inv-price').value);
         formData.append('stock', document.getElementById('inv-stock').value);
         formData.append('image_pattern', document.getElementById('inv-pattern').value);
@@ -1002,6 +1005,7 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('material', document.getElementById('edit-inv-material').value);
         formData.append('description', document.getElementById('edit-inv-desc').value);
         formData.append('dimensions', document.getElementById('edit-inv-dim').value);
+        formData.append('cost', document.getElementById('edit-inv-cost').value);
         formData.append('price', document.getElementById('edit-inv-price').value);
         formData.append('stock', document.getElementById('edit-inv-stock').value);
         formData.append('image_pattern', document.getElementById('edit-inv-pattern').value);

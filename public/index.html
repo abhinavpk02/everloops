@@ -354,6 +354,8 @@
                                 <i data-lucide="search"></i>
                                 <input type="text" id="inv-search" placeholder="Search SKU, name...">
                             </div>
+                            <button class="btn-primary" id="btn-view-activity"><i data-lucide="history"></i>
+                                Activity</button>
                             <button class="btn-primary" id="btn-add-inventory"><i data-lucide="plus"></i> Add
                                 Item</button>
                         </div>
@@ -573,17 +575,83 @@
                         </div>
                     </div>
 
-                    <div class="dashboard-grid">
+                    <div class="metrics-row"
+                        style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 2rem;">
+                        <div class="admin-panel" style="padding: 1.5rem; border-left: 4px solid var(--primary);">
+                            <p class="text-muted"
+                                style="font-size: 0.8rem; margin-bottom: 0.5rem; display:flex; align-items:center; gap:0.5rem;">
+                                <i data-lucide="dollar-sign" style="width:14px; height:14px;"></i> TOTAL REVENUE
+                            </p>
+                            <h2 id="report-total-revenue"
+                                style="margin:0; color: var(--text-main); font-size: 1.6rem; font-weight: 800;">QAR 0
+                            </h2>
+                        </div>
+                        <div class="admin-panel" style="padding: 1.5rem; border-left: 4px solid #10b981;">
+                            <p class="text-muted"
+                                style="font-size: 0.8rem; margin-bottom: 0.5rem; display:flex; align-items:center; gap:0.5rem;">
+                                <i data-lucide="shopping-bag" style="width:14px; height:14px;"></i> AVG ORDER VALUE
+                            </p>
+                            <h2 id="report-avg-order"
+                                style="margin:0; color: var(--text-main); font-size: 1.6rem; font-weight: 800;">QAR 0
+                            </h2>
+                        </div>
+                        <div class="admin-panel" style="padding: 1.5rem; border-left: 4px solid #6366f1;">
+                            <p class="text-muted"
+                                style="font-size: 0.8rem; margin-bottom: 0.5rem; display:flex; align-items:center; gap:0.5rem;">
+                                <i data-lucide="file-text" style="width:14px; height:14px;"></i> TOTAL INVOICES
+                            </p>
+                            <h2 id="report-total-invoices"
+                                style="margin:0; color: var(--text-main); font-size: 1.6rem; font-weight: 800;">0</h2>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-grid"
+                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 1.5rem;">
                         <div class="admin-panel" style="padding: 1.5rem;">
-                            <h3 style="margin-bottom: 1.5rem;">Sales Performance</h3>
-                            <div class="chart-container">
+                            <h3 style="margin-bottom: 1.5rem; display:flex; align-items:center; gap:0.5rem;"><i
+                                    data-lucide="users" style="color:var(--primary);"></i> Top Valuable Customers
+                            </h3>
+                            <div class="chart-container" style="height: 300px;">
+                                <canvas id="topCustomersChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="admin-panel" style="padding: 1.5rem;">
+                            <h3 style="margin-bottom: 1.5rem; display:flex; align-items:center; gap:0.5rem;"><i
+                                    data-lucide="trending-up" style="color:var(--primary);"></i> Sales Revenue Trend
+                            </h3>
+                            <div class="chart-container" style="height: 300px;">
                                 <canvas id="salesChart"></canvas>
                             </div>
                         </div>
                         <div class="admin-panel" style="padding: 1.5rem;">
-                            <h3 style="margin-bottom: 1.5rem;">Top Selling Inventory</h3>
-                            <div class="chart-container">
+                            <h3 style="margin-bottom: 1.5rem; display:flex; align-items:center; gap:0.5rem;"><i
+                                    data-lucide="bar-chart-2" style="color:var(--primary);"></i> Top Selling Products
+                            </h3>
+                            <div class="chart-container" style="height: 300px;">
                                 <canvas id="productsChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="admin-panel" style="padding: 1.5rem;">
+                            <h3 style="margin-bottom: 1.5rem; display:flex; align-items:center; gap:0.5rem;"><i
+                                    data-lucide="pie-chart" style="color:var(--primary);"></i> Inventory by Material
+                            </h3>
+                            <div class="chart-container" style="height: 300px;">
+                                <canvas id="inventoryMaterialChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="admin-panel" style="padding: 1.5rem;">
+                            <h3 style="margin-bottom: 1.5rem; display:flex; align-items:center; gap:0.5rem;"><i
+                                    data-lucide="layers" style="color:var(--primary);"></i> Stock by Carpet Type</h3>
+                            <div class="chart-container" style="height: 300px;">
+                                <canvas id="stockByTypeChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="admin-panel" style="padding: 1.5rem;" id="correlation-panel">
+                            <h3 style="margin-bottom: 1.5rem; display:flex; align-items:center; gap:0.5rem;"><i
+                                    data-lucide="scatter-chart" style="color:var(--primary);"></i> Price vs Cost
+                                Correlation</h3>
+                            <div class="chart-container" style="height: 300px;">
+                                <canvas id="priceCostCorrelationChart"></canvas>
                             </div>
                         </div>
                     </div>
@@ -759,12 +827,11 @@
                         <input type="text" id="inv-material" class="form-input" placeholder="e.g. Silk, Wool">
                     </div>
                 </div>
-                <div class="form-group">
-                    <label>Description</label>
-                    <textarea id="inv-desc" class="form-input" rows="2"
-                        placeholder="Carpet description/history..."></textarea>
-                </div>
                 <div style="display: flex; gap: 1rem;">
+                    <div class="form-group" style="flex: 1;">
+                        <label>Cost (QAR)</label>
+                        <input type="number" id="inv-cost" class="form-input" required value="0">
+                    </div>
                     <div class="form-group" style="flex: 1;">
                         <label>Price (QAR)</label>
                         <input type="number" id="inv-price" class="form-input" required>
@@ -827,12 +894,11 @@
                         <input type="text" id="edit-inv-material" class="form-input" placeholder="e.g. Silk, Wool">
                     </div>
                 </div>
-                <div class="form-group">
-                    <label>Description</label>
-                    <textarea id="edit-inv-desc" class="form-input" rows="2"
-                        placeholder="Carpet description/history..."></textarea>
-                </div>
                 <div style="display: flex; gap: 1rem;">
+                    <div class="form-group" style="flex: 1;">
+                        <label>Cost (QAR)</label>
+                        <input type="number" id="edit-inv-cost" class="form-input" required>
+                    </div>
                     <div class="form-group" style="flex: 1;">
                         <label>Price (QAR)</label>
                         <input type="number" id="edit-inv-price" class="form-input" required>
@@ -958,110 +1024,282 @@
 
 
     <!-- Invoice Builder Preview Modal -->
+    <style>
+        @media print {
+            body * {
+                visibility: hidden !important;
+            }
+
+            #modal-invoice-preview,
+            #modal-invoice-preview * {
+                visibility: visible !important;
+            }
+
+            #modal-invoice-preview {
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                background: #fff !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                z-index: 99999 !important;
+                display: block !important;
+            }
+
+            .modal-overlay {
+                background: none !important;
+                position: static !important;
+                padding: 0 !important;
+                display: block !important;
+            }
+
+            .modal-content {
+                box-shadow: none !important;
+                border: none !important;
+                width: 100% !important;
+                max-width: none !important;
+                transform: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            .modal-header,
+            .modal-actions,
+            .close-modal,
+            .btn-primary,
+            .btn-text,
+            .icon-btn,
+            .no-print {
+                display: none !important;
+            }
+
+            #invoice-printable {
+                padding: 0 !important;
+                width: 100% !important;
+                border: none !important;
+            }
+        }
+    </style>
     <div id="modal-invoice-preview" class="modal-overlay" style="z-index: 9999;">
-        <div class="modal-content" style="max-width: 780px; background: #fff; color: #1e293b;">
-            <div class="modal-header" style="background:#fff; border-bottom:2px solid #e2e8f0;">
-                <h3 style="color:#1e293b;">Invoice Preview</h3>
+        <div class="modal-content"
+            style="max-width: 850px; background: #fff; color: #1e293b; padding: 0; overflow: hidden;">
+            <div class="modal-header no-print"
+                style="background:#fff; border-bottom:1px solid #e2e8f0; padding: 1rem 1.5rem;">
+                <h3 style="color:#1e293b; margin:0;">Invoice Preview</h3>
                 <div style="display:flex; gap:0.75rem; align-items:center;">
-                    <span style="font-size:0.8rem; color:#94a3b8;">Preview only — not saved yet</span>
-                    <button class="icon-btn"
+                    <button class="btn-primary" id="btn-print-invoice-preview"
+                        style="background: #1e293b; color: #fff; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: 8px; border: none; cursor: pointer;">
+                        <i data-lucide="printer" style="width: 16px; height: 16px;"></i> Print / System Pop-up
+                    </button>
+                    <button class="icon-btn close-modal"
                         onclick="document.getElementById('modal-invoice-preview').classList.remove('active')"
-                        style="background:#f1f5f9; border-color:#e2e8f0; color:#1e293b;"><i
-                            data-lucide="x"></i></button>
+                        style="background:#f1f5f9; border-color:#e2e8f0; color:#1e293b; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer;">
+                        <i data-lucide="x" style="width: 16px; height: 16px;"></i>
+                    </button>
                 </div>
             </div>
-            <div style="padding:2rem; background:#fff;">
-                <!-- Company Header -->
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:2rem;">
-                    <div>
-                        <h2 id="prv-company-name" style="margin:0; font-size:1.6rem; font-weight:800; color:#1e293b;">
-                        </h2>
-                        <p id="prv-company-address"
-                            style="margin:0.25rem 0 0; font-size:0.85rem; color:#64748b; line-height:1.5;"></p>
-                        <p id="prv-company-phone" style="margin:0; font-size:0.85rem; color:#64748b;"></p>
+
+            <div id="invoice-printable"
+                style="width:100%; font-family: 'Inter', 'Helvetica', sans-serif; color: #1e293b; background:#fff; position: relative; min-height: 1050px;">
+                <!-- Top Accent Bar -->
+                <div style="height: 12px; background: #d4af37; width: 100%;"></div>
+
+                <div style="padding: 3rem;">
+                    <!-- Header -->
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 3.5rem;">
+                        <div>
+                            <img src="/uploads/everloopslogo.png"
+                                style="max-height: 70px; margin-bottom: 1.5rem; display: block;">
+                            <h2 id="prv-company-name"
+                                style="margin: 0; font-size: 1.6rem; font-weight: 800; color: #1e293b;"></h2>
+                            <p id="prv-company-address"
+                                style="margin: 8px 0; font-size: 0.85rem; color: #64748b; max-width: 280px; line-height: 1.4;">
+                            </p>
+                            <p id="prv-company-phone"
+                                style="margin: 0; font-size: 0.85rem; color: #64748b; font-weight: 500;"></p>
+                        </div>
+                        <div style="text-align: right;">
+                            <h1
+                                style="margin: 0; font-size: 3.5rem; font-weight: 900; color: #f1f5f9; letter-spacing: -2px; line-height: 1;">
+                                INVOICE</h1>
+                            <div style="margin-top: 1.5rem;">
+                                <p
+                                    style="margin: 0; font-size: 0.75rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">
+                                    Invoice Number</p>
+                                <p id="prv-inv-no-display"
+                                    style="margin: 2px 0 0 0; font-size: 1.1rem; font-weight: 700; color: #1e293b;">
+                                    #INV-NEW</p>
+                            </div>
+                            <div style="margin-top: 1rem;">
+                                <p
+                                    style="margin: 0; font-size: 0.75rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">
+                                    Issue Date</p>
+                                <p id="prv-date"
+                                    style="margin: 2px 0 0 0; font-size: 1.1rem; font-weight: 700; color: #1e293b;"></p>
+                            </div>
+                        </div>
                     </div>
-                    <div style="text-align:right;">
-                        <div style="font-size:2rem; font-weight:900; color:#1e293b; letter-spacing:-1px;">INVOICE</div>
-                        <div
-                            style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem 1rem; margin-top:0.5rem; min-width:200px;">
+
+                    <!-- Bill To & Payment Info -->
+                    <div style="display: flex; margin-bottom: 3.5rem; gap: 2rem;">
+                        <div style="display: flex; flex: 1.5;">
+                            <div style="width: 6px; background: #d4af37; border-radius: 3px;"></div>
                             <div
-                                style="display:flex; justify-content:space-between; gap:1rem; font-size:0.8rem; margin-bottom:0.25rem;">
-                                <span style="color:#64748b; font-weight:600;">DATE</span>
-                                <span id="prv-date" style="font-weight:600;"></span>
+                                style="padding: 1.25rem 2rem; background: #f8fafc; flex: 1; border-radius: 0 12px 12px 0;">
+                                <p
+                                    style="margin: 0; font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px;">
+                                    Billed To</p>
+                                <h3 id="prv-customer"
+                                    style="margin: 0; font-size: 1.4rem; font-weight: 800; color: #1e293b;"></h3>
+                                <p id="prv-customer-details"
+                                    style="margin: 5px 0 0 0; font-size: 0.85rem; color: #64748b;"></p>
+                            </div>
+                        </div>
+                        <div style="flex: 1; padding: 1.25rem 0;">
+                            <div style="margin-bottom: 1rem;">
+                                <p
+                                    style="margin: 0; font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">
+                                    Payment Method</p>
+                                <p id="prv-payment"
+                                    style="margin: 4px 0 0 0; font-size: 1rem; font-weight: 700; color: #1e293b;"></p>
+                            </div>
+                            <div>
+                                <p
+                                    style="margin: 0; font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">
+                                    Status</p>
+                                <p id="prv-status-display"
+                                    style="margin: 4px 0 0 0; font-size: 1rem; font-weight: 700;"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Items Table -->
+                    <table style="width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 3rem;">
+                        <thead>
+                            <tr style="background: #1e293b; color: #fff;">
+                                <th
+                                    style="padding: 1.25rem 1.5rem; text-align: left; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; border-radius: 8px 0 0 8px;">
+                                    Description</th>
+                                <th
+                                    style="padding: 1.25rem; text-align: center; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; width: 80px;">
+                                    Qty</th>
+                                <th
+                                    style="padding: 1.25rem; text-align: right; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; width: 140px;">
+                                    Unit Price</th>
+                                <th
+                                    style="padding: 1.25rem 1.5rem; text-align: right; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; border-radius: 0 8px 8px 0; width: 140px;">
+                                    Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="prv-items">
+                            <!-- Rows go here -->
+                        </tbody>
+                    </table>
+
+                    <!-- Totals Section -->
+                    <div style="display: flex; justify-content: space-between; margin-top: 2rem; gap: 4rem;">
+                        <div style="flex: 1.2;">
+                            <h4
+                                style="margin: 0 0 12px 0; font-size: 0.85rem; font-weight: 700; color: #1e293b; text-transform: uppercase; letter-spacing: 1px;">
+                                Notes & Terms</h4>
+                            <p
+                                style="margin: 0; font-size: 0.8rem; color: #64748b; line-height: 1.6; background: #fdfcf6; padding: 1rem; border-radius: 8px; border: 1px solid #fef3c7;">
+                                Thank you for your business. Please ensure payment is made within the agreed timeframe.
+                                This invoice is computer-generated and does not require a physical signature for
+                                validity.
+                            </p>
+                        </div>
+                        <div style="flex: 1; min-width: 280px;">
+                            <div
+                                style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f1f5f9;">
+                                <span style="font-size: 0.95rem; color: #64748b; font-weight: 500;">Sub Total</span>
+                                <span id="prv-subtotal"
+                                    style="font-size: 1rem; color: #1e293b; font-weight: 700;"></span>
+                            </div>
+                            <div id="prv-discount-row"
+                                style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f1f5f9;">
+                                <span style="font-size: 0.95rem; color: #64748b; font-weight: 500;">Discount</span>
+                                <span id="prv-discount"
+                                    style="font-size: 1rem; color: #ef4444; font-weight: 700;"></span>
                             </div>
                             <div
-                                style="display:flex; justify-content:space-between; gap:1rem; font-size:0.8rem; margin-bottom:0.25rem;">
-                                <span style="color:#64748b; font-weight:600;">STATUS</span>
-                                <span id="prv-status" style="font-weight:700;"></span>
+                                style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f1f5f9;">
+                                <span id="prv-tax-label"
+                                    style="font-size: 0.95rem; color: #64748b; font-weight: 500;">VAT (5%)</span>
+                                <span id="prv-tax" style="font-size: 1rem; color: #1e293b; font-weight: 700;"></span>
                             </div>
-                            <div style="display:flex; justify-content:space-between; gap:1rem; font-size:0.8rem;">
-                                <span style="color:#64748b; font-weight:600;">PAYMENT</span>
-                                <span id="prv-payment" style="font-weight:600;"></span>
+                            <div
+                                style="display: flex; justify-content: space-between; padding: 2rem 0 1rem 0; align-items: center;">
+                                <span
+                                    style="font-size: 1.1rem; color: #1e293b; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">Amount
+                                    Due</span>
+                                <span id="prv-total"
+                                    style="font-size: 1.8rem; color: #d4af37; font-weight: 900;"></span>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Professional Footer -->
+                    <div
+                        style="margin-top: 6rem; border-top: 2px solid #f1f5f9; padding-top: 2.5rem; display: flex; justify-content: space-between; align-items: flex-end;">
+                        <div>
+                            <p style="margin: 0; font-size: 1.1rem; font-weight: 800; color: #1e293b;">Ever Loops
+                                Carpets W.L.L.</p>
+                            <p style="margin: 6px 0 0 0; font-size: 0.8rem; color: #94a3b8; font-weight: 500;">Doha,
+                                Qatar • www.everloops.qa</p>
+                        </div>
+                        <div style="text-align: center; width: 220px;">
+                            <div style="border-bottom: 2px solid #e2e8f0; height: 60px; margin-bottom: 12px;"></div>
+                            <p
+                                style="margin: 0; font-size: 0.75rem; font-weight: 700; color: #1e293b; text-transform: uppercase; letter-spacing: 1px;">
+                                Authorized Signature</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Billed To -->
-                <div
-                    style="margin-bottom:1.5rem; padding:1rem; background:#f8fafc; border-radius:8px; border-left:4px solid #d4af37;">
-                    <p
-                        style="margin:0; font-size:0.75rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">
-                        Billed To</p>
-                    <p id="prv-customer" style="margin:0.25rem 0 0; font-size:1.1rem; font-weight:700; color:#1e293b;">
-                    </p>
+                <!-- Bottom Accent Bar -->
+                <div style="height: 12px; background: #1e293b; width: 100%; position: absolute; bottom: 0; left: 0;">
                 </div>
+            </div>
 
-                <!-- Items Table -->
-                <table style="width:100%; border-collapse:collapse; margin-bottom:1.5rem;">
-                    <thead>
-                        <tr style="background:#1e293b; color:#fff;">
-                            <th
-                                style="padding:0.75rem 1rem; text-align:left; font-size:0.8rem; font-weight:600; border-radius:6px 0 0 6px;">
-                                Description</th>
-                            <th style="padding:0.75rem; text-align:center; font-size:0.8rem; font-weight:600;">Qty</th>
-                            <th style="padding:0.75rem; text-align:right; font-size:0.8rem; font-weight:600;">Unit Price
-                            </th>
-                            <th
-                                style="padding:0.75rem 1rem; text-align:right; font-size:0.8rem; font-weight:600; border-radius:0 6px 6px 0;">
-                                Total</th>
-                        </tr>
-                    </thead>
-                    <tbody id="prv-items">
-                    </tbody>
-                </table>
+            <div class="modal-actions no-print"
+                style="padding: 1.5rem 2rem; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 1rem;">
+                <button type="button" class="btn-text"
+                    onclick="document.getElementById('modal-invoice-preview').classList.remove('active')"
+                    style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; cursor: pointer; color: #64748b;">
+                    <i data-lucide="arrow-left" style="width: 16px; height: 16px;"></i> Back to Builder
+                </button>
+                <button type="button" class="btn-primary" id="btn-final-generate"
+                    style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 2rem; border-radius: 8px; border: none; background: #1e293b; color: #fff; cursor: pointer; font-weight: 600;">
+                    <i data-lucide="check-circle" style="width: 16px; height: 16px;"></i> Save & Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+    </div>
+    </div>
 
-                <!-- Totals -->
-                <div style="display:flex; justify-content:flex-end; margin-bottom:1rem;">
-                    <div style="min-width:280px;">
-                        <div
-                            style="display:flex; justify-content:space-between; padding:0.4rem 0; font-size:0.9rem; color:#64748b; border-bottom:1px solid #f1f5f9;">
-                            <span>Subtotal</span>
-                            <span id="prv-subtotal" style="font-weight:600; color:#1e293b;"></span>
-                        </div>
-                        <div id="prv-discount-row"
-                            style="display:flex; justify-content:space-between; padding:0.4rem 0; font-size:0.9rem; color:#64748b; border-bottom:1px solid #f1f5f9;">
-                            <span>Discount</span>
-                            <span id="prv-discount" style="font-weight:600; color:#ef4444;"></span>
-                        </div>
-                        <div
-                            style="display:flex; justify-content:space-between; padding:0.4rem 0; font-size:0.9rem; color:#64748b; border-bottom:1px solid #f1f5f9;">
-                            <span id="prv-tax-label">Tax</span>
-                            <span id="prv-tax" style="font-weight:600; color:#1e293b;"></span>
-                        </div>
-                        <div
-                            style="display:flex; justify-content:space-between; padding:0.75rem 1rem; background:#1e293b; border-radius:6px; margin-top:0.5rem;">
-                            <span style="color:#fff; font-weight:700; font-size:1rem;">TOTAL</span>
-                            <span id="prv-total" style="color:#d4af37; font-weight:800; font-size:1.1rem;"></span>
-                        </div>
-                    </div>
+    <!-- Confirm Settings Save Modal -->
+    <div id="modal-confirm-settings" class="modal-overlay">
+        <div class="modal-content admin-panel" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>Confirm Changes</h3>
+                <button class="icon-btn close-modal"><i data-lucide="x"></i></button>
+            </div>
+            <div style="padding: 1.5rem 0;">
+                <p class="text-muted" style="margin-bottom: 1.5rem;">Enter your administrator password to save system
+                    settings.</p>
+                <div class="form-group">
+                    <label>Admin Password</label>
+                    <input type="password" id="confirm-settings-password" class="form-input" placeholder="••••••••"
+                        required>
                 </div>
-
-                <!-- Footer -->
-                <div style="border-top:1px solid #e2e8f0; padding-top:1rem; text-align:center;">
-                    <p style="margin:0; font-size:0.75rem; color:#94a3b8;">Thank you for your business • Ever Loops
-                        Carpets W.L.L. • Doha, Qatar</p>
-                </div>
+            </div>
+            <div class="modal-actions" style="display:flex; justify-content:flex-end; gap:1rem;">
+                <button type="button" class="btn-text close-modal"><i data-lucide="x-circle"></i> Cancel</button>
+                <button type="button" class="btn-primary" id="btn-final-save-settings"><i
+                        data-lucide="check-circle"></i> Confirm & Save</button>
             </div>
         </div>
     </div>
@@ -1069,6 +1307,42 @@
     <!-- Script that sets up Lucide icons and Charts -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Recent Activity Modal -->
+    <!-- Recent Activity Modal -->
+    <div id="modal-recent-activity" class="modal-overlay">
+        <div class="modal-content admin-panel" style="max-width: 1000px; width: 90vw;">
+            <div class="modal-header">
+                <h3>Recent Activity</h3>
+                <button class="icon-btn close-modal"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="activity-tabs"
+                    style="display:flex; border-bottom: 2px solid var(--border-color); margin-bottom: 1.5rem; gap: 1.5rem;">
+                    <button class="activity-tab-btn active" data-type="All"
+                        style="background:none; border:none; padding: 1rem 0; color: var(--text-muted); cursor:pointer; font-weight:600; border-bottom: 2px solid transparent; margin-bottom:-2px; font-size: 1rem;">All
+                        Activities</button>
+                    <button class="activity-tab-btn" data-type="Added"
+                        style="background:none; border:none; padding: 1rem 0; color: var(--text-muted); cursor:pointer; font-weight:600; border-bottom: 2px solid transparent; margin-bottom:-2px; font-size: 1rem;">Added</button>
+                    <button class="activity-tab-btn" data-type="Edited"
+                        style="background:none; border:none; padding: 1rem 0; color: var(--text-muted); cursor:pointer; font-weight:600; border-bottom: 2px solid transparent; margin-bottom:-2px; font-size: 1rem;">Edited</button>
+                    <button class="activity-tab-btn" data-type="Deleted"
+                        style="background:none; border:none; padding: 1rem 0; color: var(--text-muted); cursor:pointer; font-weight:600; border-bottom: 2px solid transparent; margin-bottom:-2px; font-size: 1rem;">Deleted</button>
+                </div>
+                <style>
+                    .activity-tab-btn.active {
+                        color: var(--primary) !important;
+                        border-bottom: 2px solid var(--primary) !important;
+                    }
+                </style>
+                <div id="activity-list" style="max-height: 500px; overflow-y: auto; padding-right: 0.5rem;">
+                    <!-- Activity items injected here -->
+                    <div style="text-align:center; padding:3rem; color: var(--text-muted);">Loading activity log...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 
     <!-- Edit Profile Modal (Empty as requested) -->

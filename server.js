@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const PDFDocument = require('pdfkit');
@@ -39,6 +40,14 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(UPLOADS_DIR));
 app.use('/collections', express.static(path.join(__dirname, 'public/collections')));
+
+// Activity Logger Helper
+const logActivity = (type, productId, name, sku, details = '') => {
+    db.run("INSERT INTO activity_log (type, product_id, product_name, product_sku, details) VALUES (?, ?, ?, ?, ?)",
+        [type, productId, name, sku, typeof details === 'object' ? JSON.stringify(details) : details],
+        (err) => { if (err) console.error('Activity Log Error:', err.message); }
+    );
+};
 
 // API Routes
 
@@ -234,52 +243,120 @@ app.get('/api/customers/:id/history', (req, res) => {
 
 // ---- INVENTORY ----
 app.get('/api/inventory', (req, res) => {
-    db.all("SELECT * FROM inventory", [], (err, rows) => {
+    let query = "SELECT * FROM inventory";
+    let params = [];
+
+    if (req.query.search) {
+        query += " WHERE name LIKE ? OR sku LIKE ? OR type LIKE ? OR material LIKE ?";
+        const searchTerm = `%${req.query.search}%`;
+        params = [searchTerm, searchTerm, searchTerm, searchTerm];
+    }
+
+    db.all(query, params, (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
     });
 });
+app.get('/api/inventory/:id', (req, res) => {
+    db.get("SELECT * FROM inventory WHERE id = ?", [req.params.id], (err, row) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!row) return res.status(404).json({ error: 'Item not found' });
+        res.json(row);
+    });
+});
 
 app.post('/api/inventory', requireAdmin, upload.single('image'), (req, res) => {
-    const { name, sku, type, material, dimensions, stock, price, description, image_pattern } = req.body;
+    const { name, sku, type, material, dimensions, stock, cost, price, description, image_pattern } = req.body;
     let finalPattern = image_pattern || '';
 
     if (req.file) {
         finalPattern = '/uploads/' + req.file.filename;
     }
 
-    db.run("INSERT INTO inventory (name, sku, type, material, dimensions, stock, price, description, image_pattern) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [name, sku, type, material, dimensions, stock, price, description, finalPattern], function (err) {
+    db.run("INSERT INTO inventory (name, sku, type, material, dimensions, stock, cost, price, description, image_pattern) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [name, sku, type, material, dimensions, stock, cost, price, description, finalPattern], function (err) {
             if (err) return res.status(500).json({ error: err.message });
+            logActivity('Added', this.lastID, name, sku, { stock, price });
             res.json({ id: this.lastID, name, sku });
         });
 });
 
 app.put('/api/inventory/:id', requireAdmin, upload.single('image'), (req, res) => {
-    const { name, sku, type, material, dimensions, stock, price, description, image_pattern } = req.body;
+    const { name, sku, type, material, dimensions, stock, cost, price, description, image_pattern } = req.body;
 
-    let query = "UPDATE inventory SET name=?, sku=?, type=?, material=?, dimensions=?, stock=?, price=?, description=? WHERE id=?";
-    let params = [name, sku, type, material, dimensions, stock, price, description, req.params.id];
+    let query = "UPDATE inventory SET name=?, sku=?, type=?, material=?, dimensions=?, stock=?, cost=?, price=?, description=? WHERE id=?";
+    let params = [name, sku, type, material, dimensions, stock, cost, price, description, req.params.id];
 
     if (req.file) {
-        query = "UPDATE inventory SET name=?, sku=?, type=?, material=?, dimensions=?, stock=?, price=?, description=?, image_pattern=? WHERE id=?";
-        params = [name, sku, type, material, dimensions, stock, price, description, '/uploads/' + req.file.filename, req.params.id];
+        query = "UPDATE inventory SET name=?, sku=?, type=?, material=?, dimensions=?, stock=?, cost=?, price=?, description=?, image_pattern=? WHERE id=?";
+        params = [name, sku, type, material, dimensions, stock, cost, price, description, '/uploads/' + req.file.filename, req.params.id];
     } else if (image_pattern && image_pattern !== 'undefined') {
         // If image_pattern string was sent (e.g. they changed the pattern dropdown)
-        query = "UPDATE inventory SET name=?, sku=?, type=?, material=?, dimensions=?, stock=?, price=?, description=?, image_pattern=? WHERE id=?";
-        params = [name, sku, type, material, dimensions, stock, price, description, image_pattern, req.params.id];
+        query = "UPDATE inventory SET name=?, sku=?, type=?, material=?, dimensions=?, stock=?, cost=?, price=?, description=?, image_pattern=? WHERE id=?";
+        params = [name, sku, type, material, dimensions, stock, cost, price, description, image_pattern, req.params.id];
     }
 
     db.run(query, params, function (err) {
         if (err) return res.status(500).json({ error: err.message });
+        logActivity('Edited', req.params.id, name, sku, { stock, price });
         res.json({ updated: this.changes });
     });
 });
 
 app.delete('/api/inventory/:id', requireAdmin, (req, res) => {
-    db.run("DELETE FROM inventory WHERE id = ?", [req.params.id], function (err) {
+    // Fetch all item details before deleting for restoration backup
+    db.get("SELECT * FROM inventory WHERE id = ?", [req.params.id], (err, item) => {
         if (err) return res.status(500).json({ error: err.message });
-        res.json({ deleted: this.changes });
+        if (!item) return res.status(404).json({ error: 'Item not found' });
+
+        db.run("DELETE FROM inventory WHERE id = ?", [req.params.id], function (err) {
+            if (err) return res.status(500).json({ error: err.message });
+            // Log with the full item object as details
+            logActivity('Deleted', req.params.id, item.name, item.sku, item);
+            res.json({ deleted: this.changes });
+        });
+    });
+});
+
+app.post('/api/activity-log/:id/restore', requireAdmin, (req, res) => {
+    db.get("SELECT details FROM activity_log WHERE id = ? AND type = 'Deleted'", [req.params.id], (err, log) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!log || !log.details) return res.status(404).json({ error: 'Deletion log not found' });
+
+        try {
+            const item = JSON.parse(log.details);
+            const { name, sku, type, material, dimensions, stock, cost, price, description, image_pattern } = item;
+
+            db.run(
+                "INSERT INTO inventory (name, sku, type, material, dimensions, stock, cost, price, description, image_pattern) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [name, sku, type, material, dimensions, stock, cost, price, description, image_pattern],
+                function (err) {
+                    if (err) {
+                        if (err.message.includes('UNIQUE constraint failed: inventory.sku')) {
+                            return res.status(400).json({ error: 'A product with this SKU already exists.' });
+                        }
+                        return res.status(500).json({ error: err.message });
+                    }
+
+                    const newId = this.lastID;
+                    logActivity('Added', newId, name, sku, { restored_from_log: req.params.id });
+
+                    // Mark the old "Deleted" log so it's not restored again (optional but good)
+                    db.run("UPDATE activity_log SET details = ? WHERE id = ?", [JSON.stringify({ ...item, restored: true }), req.params.id]);
+
+                    res.json({ restored: true, id: newId, name, sku });
+                }
+            );
+        } catch (e) {
+            res.status(500).json({ error: 'Failed to parse item details for restoration' });
+        }
+    });
+});
+
+app.get('/api/activity-log', (req, res) => {
+    db.all("SELECT * FROM activity_log ORDER BY timestamp DESC LIMIT 50", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
     });
 });
 
@@ -292,15 +369,25 @@ app.get('/api/settings', (req, res) => {
 });
 
 app.post('/api/settings', requireAdmin, (req, res) => {
-    const { company_name, address, phone, currency, tax_rate, invoice_prefix } = req.body;
-    db.run(
-        `UPDATE settings SET company_name = ?, address = ?, phone = ?, currency = ?, tax_rate = ?, invoice_prefix = ? WHERE id = 1`,
-        [company_name, address, phone, currency, tax_rate, invoice_prefix],
-        function (err) {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json({ updated: this.changes });
+    const { admin_password, company_name, address, phone, currency, tax_rate, invoice_prefix } = req.body;
+    const userId = req.user.id;
+
+    // Verify password first
+    db.get('SELECT password FROM users WHERE id = ?', [userId], (err, user) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!user || user.password !== admin_password) {
+            return res.status(401).json({ error: 'Incorrect administrator password.' });
         }
-    );
+
+        db.run(
+            `UPDATE settings SET company_name = ?, address = ?, phone = ?, currency = ?, tax_rate = ?, invoice_prefix = ? WHERE id = 1`,
+            [company_name, address, phone, currency, tax_rate, invoice_prefix],
+            function (err) {
+                if (err) return res.status(500).json({ error: err.message });
+                res.json({ updated: this.changes });
+            }
+        );
+    });
 });
 
 // ---- INVOICES ----
@@ -342,7 +429,7 @@ app.get('/api/invoices/:id', (req, res) => {
 function generateInvoicePDFBuffer(invoiceData, settings) {
     return new Promise((resolve, reject) => {
         const { PassThrough } = require('stream');
-        const doc = new PDFDocument({ margin: 40, size: 'A4' });
+        const doc = new PDFDocument({ margin: 0, size: 'A4' }); // Use 0 margin for full bleed accent bars
         const chunks = [];
         const pt = new PassThrough();
         pt.on('data', c => chunks.push(c));
@@ -351,16 +438,22 @@ function generateInvoicePDFBuffer(invoiceData, settings) {
         doc.pipe(pt);
 
         const companyName = settings ? settings.company_name : 'EVER LOOPS';
-        const rawAddr = settings ? (settings.address || '') : '';
-        const companyAddress = rawAddr.replace(/\\n/g, '\\n').replace(/\n/g, ', ');
+        const rawAddr = settings ? (settings.address || '') : 'Doha, Qatar';
+        const companyAddress = rawAddr.replace(/\\n/g, ', ').replace(/\n/g, ', ');
         const companyPhone = settings ? settings.phone : '';
         const currency = settings ? settings.currency : 'QAR';
         const currentTaxRate = settings ? Number(settings.tax_rate) : 5;
-        const leftMargin = 40, rightMargin = 555;
-        const col1 = 40, col2 = 280, col3 = 340, col4 = 430, col5 = 480;
 
-        // LOGO
-        let headerY = 40;
+        const leftMargin = 50, rightMargin = 545, width = 595;
+        const col1 = 50, col2 = 320, col3 = 380, col4 = 470, col5 = 545;
+
+        // 1. Accent Bars
+        doc.rect(0, 0, width, 12).fill('#d4af37');
+        doc.rect(0, 830, width, 12).fill('#1e293b');
+
+        // 2. Header
+        let y = 60;
+        // Logo
         try {
             const rawLogo = settings && settings.company_logo ? settings.company_logo : null;
             if (rawLogo) {
@@ -368,101 +461,112 @@ function generateInvoicePDFBuffer(invoiceData, settings) {
                 const localPath = path.join(UPLOADS_DIR, path.basename(lp));
                 const repoPath = path.join(PROJECT_ROOT, lp);
                 const fullLogoPath = fs.existsSync(localPath) ? localPath : (fs.existsSync(repoPath) ? repoPath : null);
-                if (fullLogoPath) doc.image(fs.readFileSync(fullLogoPath), leftMargin, headerY, { width: 170 });
+                if (fullLogoPath) doc.image(fs.readFileSync(fullLogoPath), leftMargin, y, { height: 50 });
             }
         } catch (e) { console.error('Logo error in PDF:', e.message); }
 
-        doc.fillColor('#1e293b').fontSize(32).font('Helvetica-Bold')
-            .text('INVOICE', leftMargin, headerY + 10, { align: 'right', width: rightMargin - leftMargin });
+        // Background-like INVOICE text
+        doc.fillColor('#f1f5f9').fontSize(60).font('Helvetica-Bold')
+            .text('INVOICE', 300, y - 10, { width: 245, align: 'right' });
 
-        headerY += 80;
-        doc.moveTo(leftMargin, headerY).lineTo(rightMargin, headerY).lineWidth(3).strokeColor('#bdf53d').stroke();
-        headerY += 25;
+        y += 65;
+        // Company details
+        doc.fillColor('#1e293b').fontSize(14).font('Helvetica-Bold').text(companyName, leftMargin, y);
+        doc.fillColor('#64748b').fontSize(9).font('Helvetica').text(companyAddress, leftMargin, y + 18, { width: 220 });
+        doc.text(companyPhone, leftMargin, y + 30);
 
-        doc.fillColor('#64748b').fontSize(8).font('Helvetica-Bold').text('INVOICE TO:', leftMargin, headerY);
-        doc.text('INVOICE DETAILS:', 350, headerY);
-        headerY += 14;
-        doc.fillColor('#1e293b').fontSize(14).font('Helvetica-Bold').text(invoiceData.customerName || 'Quick Customer', leftMargin, headerY);
-        doc.fontSize(9).font('Helvetica').text('Invoice #:', 350, headerY);
-        doc.font('Helvetica-Bold').text(invoiceData.invoiceNumber, 420, headerY);
-        headerY += 16;
-        doc.font('Helvetica').text('Date:', 350, headerY);
-        doc.font('Helvetica-Bold').text(new Date(invoiceData.createdAt || Date.now()).toLocaleDateString(), 420, headerY);
-        headerY += 16;
-        doc.font('Helvetica').text('Status:', 350, headerY);
+        // Invoice Meta Info (Issue Date, etc)
+        const metaX = 400;
+        doc.fillColor('#94a3b8').fontSize(8).font('Helvetica-Bold').text('INVOICE NUMBER', metaX, y);
+        doc.fillColor('#1e293b').fontSize(11).font('Helvetica-Bold').text('#' + (invoiceData.invoiceNumber || 'NEW'), metaX, y + 12);
+
+        doc.fillColor('#94a3b8').fontSize(8).font('Helvetica-Bold').text('ISSUE DATE', metaX, y + 35);
+        doc.fillColor('#1e293b').fontSize(11).font('Helvetica-Bold').text(new Date(invoiceData.createdAt || Date.now()).toLocaleDateString('en-GB'), metaX, y + 47);
+
+        y += 85;
+
+        // 3. Bill To Section
+        doc.rect(leftMargin, y, 6, 60).fill('#d4af37');
+        doc.rect(leftMargin + 6, y, 280, 60).fill('#f8fafc');
+
+        doc.fillColor('#94a3b8').fontSize(8).font('Helvetica-Bold').text('BILLED TO', leftMargin + 20, y + 12);
+        doc.fillColor('#1e293b').fontSize(14).font('Helvetica-Bold').text(invoiceData.customerName || 'Quick Customer', leftMargin + 20, y + 24);
+
+        // Payment & Status Info
+        doc.fillColor('#94a3b8').fontSize(8).font('Helvetica-Bold').text('PAYMENT METHOD', metaX, y + 5);
+        doc.fillColor('#1e293b').fontSize(10).font('Helvetica-Bold').text(invoiceData.paymentMethod || 'Cash', metaX, y + 17);
+
+        doc.fillColor('#94a3b8').fontSize(8).font('Helvetica-Bold').text('STATUS', metaX, y + 35);
         const sColor = invoiceData.status === 'Paid' ? '#10b981' : '#f59e0b';
-        doc.fillColor(sColor).font('Helvetica-Bold').text((invoiceData.status || 'PENDING').toUpperCase(), 420, headerY);
+        doc.fillColor(sColor).fontSize(10).font('Helvetica-Bold').text((invoiceData.status || 'PENDING').toUpperCase(), metaX, y + 47);
 
-        headerY = 165;
-        doc.fillColor('#64748b').fontSize(8).font('Helvetica-Bold').text('FROM:', leftMargin, headerY);
-        doc.fillColor('#1e293b').fontSize(10).font('Helvetica-Bold').text(companyName, leftMargin, headerY + 12);
-        doc.fontSize(8).font('Helvetica').fillColor('#475569')
-            .text(companyAddress + '\nPhone: ' + companyPhone, leftMargin, headerY + 24, { width: 250 });
+        y += 90;
 
-        let tableTop = 250;
-        doc.rect(leftMargin, tableTop, 515, 25).fill('#1e293b');
-        doc.fontSize(9).font('Helvetica-Bold').fillColor('#fff');
-        doc.text('DESCRIPTION', col1 + 10, tableTop + 8);
-        doc.text('QTY', col2, tableTop + 8, { width: 40, align: 'center' });
-        doc.text('UNIT PRICE', col3, tableTop + 8, { width: 80, align: 'right' });
-        doc.text('VAT', col4, tableTop + 8, { width: 40, align: 'right' });
-        doc.text('TOTAL', col5, tableTop + 8, { width: 75, align: 'right' });
+        // 4. Items Table
+        doc.rect(leftMargin, y, rightMargin - leftMargin, 35).fill('#1e293b');
+        doc.fillColor('#ffffff').fontSize(9).font('Helvetica-Bold');
+        doc.text('DESCRIPTION', col1 + 15, y + 13);
+        doc.text('QTY', col2, y + 13, { width: 40, align: 'center' });
+        doc.text('UNIT PRICE', col3, y + 13, { width: 80, align: 'right' });
+        doc.text('TOTAL', col4, y + 13, { width: 75, align: 'right' });
 
-        let y = tableTop + 30;
+        y += 35;
         let subtotalCalc = 0;
-        (invoiceData.items || []).forEach(function (item, index) {
-            const qty = parseFloat(item.qty || item.quantity || 0);
+        (invoiceData.items || []).forEach((item, index) => {
+            const qty = parseFloat(item.qty || 0);
             const price = parseFloat(item.price || 0);
-            const lineSub = price * qty;
-            subtotalCalc += lineSub;
-            const lineTotal = lineSub + lineSub * (currentTaxRate / 100);
-            if (index % 2 === 1) doc.rect(leftMargin, y - 5, 515, 20).fill('#f8fafc');
-            doc.font('Helvetica').fontSize(9).fillColor('#1e293b');
-            doc.text(item.name || item.product_name || '', col1 + 10, y, { width: 220 });
-            doc.text(qty.toString(), col2, y, { width: 40, align: 'center' });
-            doc.text(price.toLocaleString(undefined, { minimumFractionDigits: 2 }), col3, y, { width: 80, align: 'right' });
-            doc.text(currentTaxRate + '%', col4, y, { width: 40, align: 'right' });
-            doc.text(lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2 }), col5, y, { width: 75, align: 'right' });
-            y += 20;
-            if (y > 650) { doc.addPage(); y = 50; }
+            const lineTotal = price * qty;
+            subtotalCalc += lineTotal;
+
+            if (index % 2 === 1) doc.rect(leftMargin, y, rightMargin - leftMargin, 25).fill('#fcfdff');
+
+            doc.fillColor('#1e293b').fontSize(10).font('Helvetica-Bold').text(item.name || '', col1 + 15, y + 8, { width: 240 });
+            doc.fillColor('#475569').fontSize(9).font('Helvetica').text(qty.toString(), col2, y + 8, { width: 40, align: 'center' });
+            doc.text(price.toLocaleString(undefined, { minimumFractionDigits: 2 }), col3, y + 8, { width: 80, align: 'right' });
+            doc.fillColor('#1e293b').font('Helvetica-Bold').text(lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2 }), col4, y + 8, { width: 75, align: 'right' });
+
+            y += 25;
+            if (y > 700) { doc.addPage(); y = 50; }
         });
 
-        y += 20;
-        const totalBoxWidth = 200;
-        const totalBoxX = rightMargin - totalBoxWidth;
+        // 5. Totals
+        y += 30;
+        const totalX = 350;
         const numSubtotal = parseFloat(invoiceData.subtotal) || subtotalCalc;
         const numDiscount = parseFloat(invoiceData.discount) || 0;
         const numTax = parseFloat(invoiceData.tax) || (numSubtotal - numDiscount) * (currentTaxRate / 100);
-        const numGrandTotal = parseFloat(invoiceData.grandTotal || invoiceData.total_amount) || 0;
+        const numGrandTotal = parseFloat(invoiceData.grandTotal || invoiceData.total_amount) || (numSubtotal - numDiscount + numTax);
 
-        doc.fontSize(10).font('Helvetica').fillColor('#64748b').text('Subtotal:', totalBoxX, y, { width: 100, align: 'right' });
-        doc.font('Helvetica-Bold').fillColor('#1e293b').text(currency + ' ' + numSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2 }), totalBoxX + 105, y, { width: 95, align: 'right' });
-        y += 18;
+        doc.fillColor('#64748b').fontSize(10).font('Helvetica').text('Sub Total', totalX, y, { width: 100, align: 'right' });
+        doc.fillColor('#1e293b').font('Helvetica-Bold').text(currency + ' ' + numSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2 }), totalX + 110, y, { width: 85, align: 'right' });
+        y += 20;
+
         if (numDiscount > 0) {
-            doc.font('Helvetica').fillColor('#64748b').text('Discount:', totalBoxX, y, { width: 100, align: 'right' });
-            doc.font('Helvetica-Bold').fillColor('#ef4444').text('- ' + currency + ' ' + numDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 }), totalBoxX + 105, y, { width: 95, align: 'right' });
-            y += 18;
+            doc.fillColor('#64748b').font('Helvetica').text('Discount', totalX, y, { width: 100, align: 'right' });
+            doc.fillColor('#ef4444').font('Helvetica-Bold').text('- ' + currency + ' ' + numDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 }), totalX + 110, y, { width: 85, align: 'right' });
+            y += 20;
         }
-        doc.font('Helvetica').fillColor('#64748b').text('VAT (' + currentTaxRate + '%):', totalBoxX, y, { width: 100, align: 'right' });
-        doc.font('Helvetica-Bold').fillColor('#1e293b').text(currency + ' ' + numTax.toLocaleString(undefined, { minimumFractionDigits: 2 }), totalBoxX + 105, y, { width: 95, align: 'right' });
-        y += 25;
-        doc.rect(totalBoxX, y - 8, totalBoxWidth + 5, 35).fill('#1e293b');
-        doc.fillColor('#bdf53d').fontSize(12).font('Helvetica-Bold').text('TOTAL PAYABLE', totalBoxX + 10, y + 2);
-        doc.text(currency + ' ' + numGrandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 }), totalBoxX + 110, y + 2, { width: 85, align: 'right' });
 
-        y += 60;
-        if (y > 700) { doc.addPage(); y = 50; }
-        const infoColW = 240;
-        const pm = invoiceData.paymentMethod || invoiceData.payment_method || 'Bank Transfer';
-        doc.fillColor('#64748b').fontSize(9).font('Helvetica-Bold').text('PAYMENT INFORMATION', leftMargin, y);
-        doc.fillColor('#1e293b').fontSize(8).font('Helvetica')
-            .text('Method: ' + pm + '\nBank Name: Qatar National Bank (QNB)\nAccount Name: EVER LOOPS CARPETS W.L.L.\nIBAN: QA45 QNBA 0000 0000 1234 5678 9012', leftMargin, y + 15, { width: infoColW, lineGap: 3 });
-        doc.fillColor('#64748b').fontSize(9).font('Helvetica-Bold').text('TERMS & CONDITIONS', 315, y);
-        doc.fillColor('#1e293b').fontSize(8).font('Helvetica')
-            .text('1. Goods once sold will not be exchanged or returned.\n2. Warranty covers manufacturing defects only.\n3. Installation is not included unless specified.\n4. Possession is effective after full payment.', 315, y + 15, { width: infoColW, lineGap: 3 });
+        doc.fillColor('#64748b').font('Helvetica').text('VAT (' + currentTaxRate + '%)', totalX, y, { width: 100, align: 'right' });
+        doc.fillColor('#1e293b').font('Helvetica-Bold').text(currency + ' ' + numTax.toLocaleString(undefined, { minimumFractionDigits: 2 }), totalX + 110, y, { width: 85, align: 'right' });
 
-        doc.fontSize(8).fillColor('#94a3b8').font('Helvetica-Oblique')
-            .text('Thank you for choosing Ever Loops Carpets. This is a computer-generated invoice.', leftMargin, 790, { align: 'center', width: 515 });
+        y += 35;
+        doc.fillColor('#1e293b').fontSize(12).font('Helvetica-Bold').text('AMOUNT DUE', totalX, y, { width: 100, align: 'right' });
+        doc.fillColor('#d4af37').fontSize(20).text(currency + ' ' + numGrandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 }), totalX + 110, y - 5, { width: 85, align: 'right' });
+
+        // Notes box
+        doc.fillColor('#1e293b').fontSize(9).font('Helvetica-Bold').text('NOTES & TERMS', leftMargin, y - 100);
+        doc.rect(leftMargin, y - 85, 220, 50).fill('#fdfcf6').stroke('#fef3c7');
+        doc.fillColor('#64748b').fontSize(8).font('Helvetica').text('Thank you for your business. Please ensure payment is made within valid terms. This is a computer-generated document.', leftMargin + 10, y - 75, { width: 200, lineGap: 2 });
+
+        // 6. Signature & Footer
+        y = 720;
+        doc.moveTo(350, y).lineTo(545, y).lineWidth(1).strokeColor('#e2e8f0').stroke();
+        doc.fillColor('#1e293b').fontSize(8).font('Helvetica-Bold').text('AUTHORIZED SIGNATURE', 350, y + 10, { width: 195, align: 'center' });
+
+        doc.fillColor('#1e293b').fontSize(11).font('Helvetica-Bold').text('Ever Loops Carpets W.L.L.', leftMargin, y + 30);
+        doc.fillColor('#94a3b8').fontSize(8).font('Helvetica').text('Doha, Qatar • www.everloops.qa', leftMargin, y + 45);
+
         doc.end();
     });
 }
@@ -560,12 +664,45 @@ app.get('/api/reports', (req, res) => {
                       GROUP BY label ORDER BY label ASC`;
     }
 
-    const productsQuery = `
-        SELECT inventory.name, SUM(invoice_items.quantity) as sold_count 
-        FROM invoice_items 
-        JOIN inventory ON invoice_items.product_id = inventory.id 
-        GROUP BY inventory.id 
-        ORDER BY sold_count DESC LIMIT 10
+    const inventoryByMaterialQuery = `
+        SELECT material as label, COUNT(*) as count 
+        FROM inventory 
+        WHERE material IS NOT NULL AND material != ''
+        GROUP BY material 
+        ORDER BY count DESC
+    `;
+
+    const stockByTypeQuery = `
+        SELECT type as label, SUM(stock) as total_stock 
+        FROM inventory 
+        WHERE type IS NOT NULL AND type != ''
+        GROUP BY type 
+        ORDER BY total_stock DESC
+    `;
+
+    const priceCostCorrelationQuery = `
+        SELECT name as x_label, cost as x, price as y 
+        FROM inventory 
+        WHERE cost > 0 AND price > 0
+    `;
+
+    const productsQuery = `SELECT name, sold_count FROM inventory ORDER BY sold_count DESC LIMIT 10`;
+
+    const topCustomersQuery = `
+        SELECT customers.name as label, SUM(invoices.total_amount) as value 
+        FROM invoices 
+        JOIN customers ON invoices.customer_id = customers.id 
+        GROUP BY customers.id 
+        ORDER BY value DESC 
+        LIMIT 5
+    `;
+
+    const summaryQuery = `
+        SELECT 
+            COUNT(*) as total_invoices, 
+            SUM(total_amount) as total_revenue,
+            AVG(total_amount) as avg_value
+        FROM invoices
     `;
 
     db.all(salesQuery, [], (err, salesData) => {
@@ -574,9 +711,24 @@ app.get('/api/reports', (req, res) => {
         db.all(productsQuery, [], (err, productsData) => {
             if (err) return res.status(500).json({ error: 'Products report failed: ' + err.message });
 
-            res.json({
-                sales: salesData || [],
-                products: productsData || []
+            db.all(inventoryByMaterialQuery, [], (err, materialData) => {
+                db.all(stockByTypeQuery, [], (err, typeData) => {
+                    db.all(priceCostCorrelationQuery, [], (err, correlationData) => {
+                        db.all(topCustomersQuery, [], (err, customersData) => {
+                            db.get(summaryQuery, [], (err, summaryData) => {
+                                res.json({
+                                    sales: salesData || [],
+                                    products: productsData || [],
+                                    materials: materialData || [],
+                                    stockByType: typeData || [],
+                                    correlation: correlationData || [],
+                                    topCustomers: customersData || [],
+                                    summary: summaryData || { total_invoices: 0, total_revenue: 0, avg_value: 0 }
+                                });
+                            });
+                        });
+                    });
+                });
             });
         });
     });
@@ -589,9 +741,11 @@ app.get('*', (req, res) => {
 });
 
 // --- SERVER START ---
-app.listen(PORT, () => {
-    console.log(`Ever Loops Server running at http://localhost:${PORT}`);
-});
+if (!isServerless) {
+    app.listen(PORT, () => {
+        console.log(`Ever Loops Server running at http://localhost:${PORT}`);
+    });
+}
 
 module.exports = app;
 

@@ -1,12 +1,14 @@
 {
     "version": 2,
+    "cleanUrls": true,
     "rewrites": [
         {
-            "handle": "filesystem"
+            "source": "/api/(.*)",
+            "destination": "/server.js"
         },
         {
             "source": "/(.*)",
-            "destination": "/server.js"
+            "destination": "/public/$1"
         }
     ]
 }
