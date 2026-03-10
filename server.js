@@ -36,8 +36,9 @@ const upload = multer({ storage });
 
 // Middleware to parse JSON bodies and serve static files
 app.use(express.json());
-app.use(express.static(path.join(__dirname)));
+app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(UPLOADS_DIR));
+app.use('/collections', express.static(path.join(__dirname, 'public/collections')));
 
 // API Routes
 
@@ -584,7 +585,7 @@ app.get('/api/reports', (req, res) => {
 // --- PAGE ROUTING ---
 // Global Fallback (Catch-all) for SPA
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    res.sendFile(path.join(__dirname, 'public/index.html'));
 });
 
 // --- SERVER START ---

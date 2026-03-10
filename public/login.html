@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Ever Loops Billing</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://unpkg.com/lucide@latest/iconfont/lucide.css" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .login-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            padding: 2.5rem;
+            text-align: center;
+        }
+
+        .login-logo-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .login-card h2 {
+            margin-bottom: 2rem;
+            font-weight: 600;
+        }
+
+        .login-form .form-group {
+            text-align: left;
+        }
+
+        .login-btn {
+            width: 100%;
+            justify-content: center;
+            margin-top: 1rem;
+        }
+
+        #login-error {
+            color: var(--danger);
+            font-size: 0.85rem;
+            margin-top: 1rem;
+            min-height: 20px;
+        }
+
+        .login-footer {
+            margin-top: 1.5rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .watermark {
+            position: absolute;
+            bottom: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            opacity: 0.4;
+            letter-spacing: 2px;
+            text-transform: lowercase;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        .login-logo {
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+
+<body data-theme="dark">
+    <div class="login-wrapper">
+        <div style="position: absolute; top: 2rem; right: 2rem;">
+            <div class="theme-switch-wrapper">
+                <i data-lucide="sun"></i>
+                <label class="theme-switch" for="theme-checkbox">
+                    <input type="checkbox" id="theme-checkbox">
+                    <span class="slider round"></span>
+                </label>
+                <i data-lucide="moon"></i>
+            </div>
+        </div>
+        <div class="glass-panel login-card">
+            <div class="login-logo-container" style="margin-bottom: 2rem; display: flex; justify-content: center;">
+                <img src="/uploads/everloopslogo.png" alt="Ever Loops Logo" class="login-logo"
+                    style="width: 100%; max-width: 320px; height: auto; object-fit: contain;">
+            </div>
+            <form id="login-form" class="login-form">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="username" class="form-input" required placeholder="admin or staff">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="password" class="form-input" required placeholder="••••••••">
+                </div>
+                <button type="submit" class="btn-primary login-btn">Login</button>
+                <div id="login-error"></div>
+            </form>
+            <div class="login-footer">
+                &copy;
+                <script>document.write(new Date().getFullYear())</script> Ever Loops Carpets. All rights reserved.
+            </div>
+        </div>
+        <div class="watermark">bins.lab</div>
+    </div>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        // Init Lucide
+        lucide.createIcons();
+
+        // Theme Toggle Logic
+        const themeCheckbox = document.getElementById('theme-checkbox');
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.body.setAttribute('data-theme', savedTheme);
+        if (themeCheckbox) {
+            themeCheckbox.checked = (savedTheme === 'dark');
+            themeCheckbox.addEventListener('change', () => {
+                const newTheme = themeCheckbox.checked ? 'dark' : 'light';
+                document.body.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+            });
+        }
+
+        // Check if already logged in
+        if (localStorage.getItem('token')) {
+            window.location.href = '/';
+        }
+
+        document.getElementById('login-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            const origErr = document.getElementById('login-error');
+            origErr.textContent = '';
+            btn.textContent = 'Logging in...';
+            btn.disabled = true;
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            })
+                .then(res => res.json().then(data => ({ status: res.status, body: data })))
+                .then(res => {
+                    if (res.status === 200) {
+                        localStorage.setItem('token', res.body.token);
+                        localStorage.setItem('role', res.body.role);
+                        localStorage.setItem('username', res.body.username);
+                        window.location.href = '/';
+                    } else {
+                        origErr.textContent = res.body.error || 'Login failed';
+                    }
+                })
+                .catch(err => {
+                    origErr.textContent = 'Network error during login.';
+                })
+                .finally(() => {
+                    btn.textContent = 'Login';
+                    btn.disabled = false;
+                });
+        });
+    </script>
+</body>
+
+</html>
